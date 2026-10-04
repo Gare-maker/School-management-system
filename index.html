@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crown Hill Academy • Two-Panel School Management Platform</title>
+  <meta name="description" content="Crown Hill Academy School Management System with Admin Panel, Teacher Panel, Class Hub, Continuous Assessment Score Recording, AI Question Generation, and Result Broadsheet Management.">
+
+  <!-- Google Fonts: Newsreader, Playfair Display, Plus Jakarta Sans & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- App Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="mobile-nav-backdrop" id="mobile-nav-backdrop"></div>
+
+  <div id="app">
+    <!-- Left Navigation Sidebar -->
+    <aside class="sidebar" id="app-sidebar"></aside>
+
+    <!-- Main Viewport Canvas -->
+    <main class="main-content-wrapper">
+      <!-- Top Utilities & Breadcrumb Header -->
+      <header class="top-header" id="app-header"></header>
+
+      <!-- Scrollable Main View Canvas -->
+      <div class="view-container" id="app-viewport"></div>
+    </main>
+  </div>
+
+  <!-- Right-Side Class Details Overlay Drawer Mount (Section 12) -->
+  <div id="class-drawer-overlay" class="drawer-overlay"></div>
+
+  <!-- Global Modal Mount -->
+  <div id="global-modal-overlay" class="modal-overlay"></div>
+
+  <!-- Global Toast Notifications Mount -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Application Scripts -->
+  <script src="js/data.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/ai-generator.js"></script>
+  <script src="js/export-utils.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
