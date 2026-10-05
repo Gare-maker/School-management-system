@@ -1904,29 +1904,388 @@ thead th.sticky-col-student {
 }
 
 /* ==========================================================================
-   TIMETABLE & CLASS SCHEDULE PLANNER WITH CONFLICT DETECTION
+   DAILY ATTENDANCE REGISTER & CALENDAR DROPDOWN ENGINE
    ========================================================================== */
-.timetable-hub-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+
+/* Date Selector Dropdown Button & Container */
+.attendance-date-container {
+  position: relative;
+  display: inline-block;
 }
 
-.timetable-toolbar {
+.attendance-date-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-color);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-heading);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.attendance-date-btn:hover {
+  border-color: var(--primary);
+  background: var(--bg-subtle);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.attendance-date-btn.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
+}
+
+.attendance-date-btn .date-icon {
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+}
+
+.attendance-date-btn .date-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.3px;
+}
+
+.attendance-date-btn .date-badge.marked {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.attendance-date-btn .date-badge.unmarked {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+/* Calendar Dropdown Popup */
+.calendar-dropdown-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 340px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  z-index: 1050;
+  padding: 16px;
+  animation: calendarPopupSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes calendarPopupSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.cal-month-title {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: var(--text-heading);
+}
+
+.cal-nav-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.15s ease;
+}
+
+.cal-nav-btn:hover {
+  background: var(--bg-card);
+  color: var(--text-heading);
+  border-color: var(--primary);
+}
+
+.cal-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+
+.cal-day-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-subtle);
+  padding: 6px 0;
+  text-transform: uppercase;
+}
+
+.cal-day-cell {
+  position: relative;
+  height: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-heading);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: transparent;
+  user-select: none;
+}
+
+.cal-day-cell:hover:not(.empty) {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.cal-day-cell.today {
+  border: 1.5px solid var(--primary);
+  font-weight: 800;
+}
+
+.cal-day-cell.selected {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  font-weight: 800;
+  box-shadow: 0 2px 4px rgba(234, 88, 12, 0.3);
+}
+
+.cal-day-cell.selected .cal-dot {
+  background: #ffffff !important;
+}
+
+.cal-day-cell.other-month {
+  color: var(--text-subtle);
+  opacity: 0.4;
+}
+
+.cal-day-cell.empty {
+  cursor: default;
+}
+
+/* Marked Dot Indicator */
+.cal-dot {
+  position: absolute;
+  bottom: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+.cal-dot.warning {
+  background: #f59e0b;
+}
+
+.cal-legend-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border-color);
+  margin-top: 12px;
+  padding-top: 10px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.cal-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.cal-today-btn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.cal-today-btn:hover {
+  background: var(--primary-light);
+}
+
+/* Quick History List in Dropdown */
+.cal-history-list {
+  border-top: 1px solid var(--border-color);
+  margin-top: 10px;
+  padding-top: 10px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.cal-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.cal-history-item:hover {
+  background: var(--bg-subtle);
+}
+
+.cal-history-date {
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.cal-history-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #166534;
+  background: #dcfce7;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+}
+
+/* Attendance Stats Bar Cards */
+.attendance-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 960px) {
+  .attendance-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 540px) {
+  .attendance-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.att-stat-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.att-stat-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--border-color);
+}
+
+.att-stat-card.total::before { background: #0f172a; }
+.att-stat-card.present::before { background: #10b981; }
+.att-stat-card.absent::before { background: #ef4444; }
+.att-stat-card.status::before { background: var(--primary); }
+
+.att-stat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.att-stat-lbl {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.att-stat-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-subtle);
+  color: var(--text-heading);
+}
+
+.att-stat-val {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-heading);
+  line-height: 1.1;
+  font-family: 'Newsreader', serif;
+}
+
+.att-stat-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Attendance Register Table and Action Toolbar */
+.attendance-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
   background: var(--bg-card);
-  padding: 12px 16px;
+  padding: 14px 18px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
+  margin-bottom: 16px;
   box-shadow: var(--shadow-sm);
 }
 
-.timetable-mode-tabs {
+.attendance-btn-group {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Attendance Toggle Controls */
+.att-toggle-group {
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   background: var(--bg-subtle);
@@ -1935,428 +2294,178 @@ thead th.sticky-col-student {
   border: 1px solid var(--border-color);
 }
 
-.timetable-mode-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+.att-toggle-btn {
+  padding: 5px 10px;
   border-radius: var(--radius-sm);
   border: none;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
   background: transparent;
   color: var(--text-muted);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   transition: all 0.15s ease;
+  user-select: none;
 }
 
-.timetable-mode-btn:hover {
+.att-toggle-btn:hover {
   color: var(--text-heading);
 }
 
-.timetable-mode-btn.active {
-  background: var(--bg-card);
-  color: var(--primary);
-  box-shadow: var(--shadow-sm);
+.att-toggle-btn.active-present {
+  background: #10b981 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
 }
 
-.timetable-mode-btn .badge-pill-danger {
-  background: var(--danger-light);
-  color: var(--danger);
-  border: 1px solid var(--danger-border);
-  font-size: 10.5px;
-  padding: 1px 6px;
+.att-toggle-btn.active-absent {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.3);
+}
+
+.att-toggle-btn.active-late {
+  background: #f59e0b !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.3);
+}
+
+.att-toggle-btn.active-excused {
+  background: #3b82f6 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
+}
+
+/* Read-Only Status Badges */
+.badge-att-present {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  padding: 4px 10px;
   border-radius: var(--radius-full);
+  font-size: 11.5px;
+  font-weight: 700;
 }
 
-.conflict-alert-banner {
-  background: #fff8f6;
+.badge-att-absent {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #fee2e2;
+  color: #b91c1c;
   border: 1px solid #fecaca;
-  border-left: 4px solid var(--danger);
-  border-radius: var(--radius-md);
-  padding: 12px 16px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.badge-att-late {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.badge-att-excused {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+/* Form Teacher Banner / Card in Class Workspace */
+.form-teacher-banner {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  margin-bottom: 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  animation: fadeIn 0.2s ease;
+  flex-wrap: wrap;
+  gap: 16px;
+  box-shadow: var(--shadow-card);
 }
 
-.conflict-alert-left {
+.form-teacher-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
-.conflict-alert-icon {
-  width: 32px;
-  height: 32px;
+.form-teacher-avatar {
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  background: var(--danger-light);
-  color: var(--danger);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  object-fit: cover;
+  border: 2px solid var(--primary);
 }
 
-.conflict-alert-text h4 {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #991b1b;
+.form-teacher-info h3 {
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 3px 0;
+}
+
+.form-teacher-info p {
+  font-size: 13px;
+  color: #94a3b8;
   margin: 0;
 }
 
-.conflict-alert-text p {
-  font-size: 12px;
-  color: #7f1d1d;
-  margin: 2px 0 0 0;
-}
-
-/* Timetable Matrix Grid */
-.timetable-grid-card {
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
-}
-
-.timetable-grid-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  table-layout: fixed;
-}
-
-.timetable-grid-table th,
-.timetable-grid-table td {
-  border-right: 1px solid var(--border-color);
-  border-bottom: 1px solid var(--border-color);
-  vertical-align: top;
-  padding: 8px;
-}
-
-.timetable-grid-table th:last-child,
-.timetable-grid-table td:last-child {
-  border-right: none;
-}
-
-.timetable-grid-table tr:last-child td {
-  border-bottom: none;
-}
-
-.timetable-grid-table thead th {
-  background: #f8fafc;
-  font-weight: 700;
-  font-size: 12.5px;
-  color: var(--text-heading);
-  text-align: center;
-  padding: 10px 8px;
-}
-
-.timetable-period-th {
-  min-width: 135px;
-}
-
-.timetable-period-th .period-name {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--primary);
-}
-
-.timetable-period-th .period-time {
-  font-size: 10.5px;
-  color: var(--text-muted);
-  font-weight: 500;
-  margin-top: 1px;
-}
-
-.timetable-day-col {
-  width: 110px;
-  background: #f8fafc;
-  font-weight: 700;
-  font-size: 12.5px;
-  color: var(--text-heading);
-  text-align: left;
-  padding: 12px 10px !important;
-  vertical-align: middle !important;
-}
-
-.timetable-slot-cell {
-  position: relative;
-  min-height: 100px;
-  height: 100%;
-  background: #ffffff;
-  transition: background 0.15s ease;
-  padding: 6px !important;
-}
-
-.timetable-slot-cell:hover {
-  background: #fafbfc;
-}
-
-/* Scheduled Slot Card */
-.slot-card {
-  border-radius: var(--radius-md);
-  padding: 8px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-left: 3.5px solid var(--primary);
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  position: relative;
-  transition: all 0.15s ease;
-  cursor: pointer;
-  min-height: 84px;
-}
-
-.slot-card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
-  border-color: #cbd5e1;
-}
-
-.slot-card.has-conflict {
-  background: #fff5f5;
-  border-color: #fecaca;
-  border-left-color: var(--danger);
-}
-
-.slot-card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 4px;
-}
-
-.slot-subject-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-heading);
-  line-height: 1.25;
-}
-
-.slot-badge-type {
-  font-size: 9.5px;
-  font-weight: 600;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: #e2e8f0;
-  color: var(--text-main);
-  white-space: nowrap;
-  text-transform: uppercase;
-}
-
-.slot-badge-type.practical {
-  background: #e0f2fe;
-  color: #0369a1;
-}
-
-.slot-badge-type.tutorial {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.slot-badge-type.assessment {
-  background: #fce7f3;
-  color: #9d174d;
-}
-
-.slot-teacher-info {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.slot-teacher-avatar {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.slot-room-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10px;
-  color: #475569;
-  background: #edf2f7;
-  padding: 1px 5px;
-  border-radius: 3px;
-  width: fit-content;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.slot-conflict-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--danger);
-  background: var(--danger-light);
-  border: 1px solid var(--danger-border);
-  padding: 1px 5px;
-  border-radius: 3px;
-}
-
-.slot-hover-actions {
-  display: none;
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 4px;
-  padding: 1px;
-  gap: 2px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-}
-
-.slot-card:hover .slot-hover-actions {
-  display: flex;
-}
-
-.slot-hover-btn {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-.slot-hover-btn:hover {
-  background: var(--bg-hover);
-  color: var(--primary);
-}
-
-.slot-hover-btn.delete:hover {
-  background: var(--danger-light);
-  color: var(--danger);
-}
-
-/* Empty Cell Add Button */
-.slot-empty-btn {
-  width: 100%;
-  height: 100%;
-  min-height: 84px;
-  border: 1.5px dashed #e2e8f0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--text-subtle);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.slot-empty-btn:hover {
-  border-color: var(--primary);
-  background: var(--primary-light);
-  color: var(--primary);
-}
-
-/* Break Row Styling */
-.timetable-break-cell {
-  background: #f1f5f9 !important;
-  text-align: center;
-  padding: 8px !important;
-  color: #475569;
-  font-weight: 600;
-  font-size: 11.5px;
-  letter-spacing: 0.5px;
-}
-
-.break-badge-pill {
+.form-teacher-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #e2e8f0;
-  padding: 3px 12px;
+  background: rgba(234, 88, 12, 0.2);
+  color: #fb923c;
+  border: 1px solid rgba(234, 88, 12, 0.4);
+  padding: 3px 10px;
   border-radius: var(--radius-full);
   font-size: 11px;
   font-weight: 700;
-  color: #334155;
   text-transform: uppercase;
-}
-
-/* Live Conflict Preview Inside Modals */
-.modal-conflict-box {
-  border-radius: var(--radius-md);
-  padding: 10px 12px;
-  margin-top: 10px;
-  font-size: 12px;
-  line-height: 1.4;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.modal-conflict-box.safe {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  color: #166534;
-}
-
-.modal-conflict-box.danger {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
-}
-
-.modal-conflict-box.warning {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  color: #92400e;
-}
-
-/* Conflict Scanner View Cards */
-.conflict-card {
-  background: var(--bg-card);
-  border-radius: var(--radius-md);
-  border: 1px solid #fecaca;
-  border-left: 4px solid var(--danger);
-  padding: 14px 16px;
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  box-shadow: var(--shadow-sm);
-}
-
-.conflict-card.warning {
-  border-color: #fde68a;
-  border-left-color: var(--warning);
-}
-
-.conflict-card-details h4 {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: var(--text-heading);
+  letter-spacing: 0.5px;
   margin-bottom: 4px;
 }
 
-.conflict-card-details p {
-  font-size: 12.5px;
-  color: var(--text-muted);
+/* Teacher Class Card - Form Class Indicator */
+.class-card.is-form-class {
+  border-color: rgba(234, 88, 12, 0.5);
+  box-shadow: 0 0 0 1px rgba(234, 88, 12, 0.2), var(--shadow-card);
+}
+
+.form-class-corner-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid var(--primary-border);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
 }
 
 @media print {
@@ -2368,7 +2477,7 @@ thead th.sticky-col-student {
     border: none;
     box-shadow: none;
   }
-  .sidebar, .top-header, .timetable-toolbar, .view-actions, .slot-empty-btn, .slot-hover-actions {
+  .sidebar, .top-header, .attendance-toolbar, .view-actions, .att-toggle-group, .cal-nav-btn {
     display: none !important;
   }
   .main-content-wrapper {

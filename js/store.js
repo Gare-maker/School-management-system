@@ -14,18 +14,24 @@ class Store {
   loadState() {
     try {
       const serialized = localStorage.getItem(this.STORAGE_KEY);
-      if (serialized) {
         const parsed = JSON.parse(serialized);
         if (parsed && parsed.school && parsed.classes && parsed.students) {
-          if (!parsed.timetableSlots || !Array.isArray(parsed.timetableSlots)) {
-            parsed.timetableSlots = JSON.parse(JSON.stringify((window.INITIAL_DATA && window.INITIAL_DATA.timetableSlots) || []));
+          if (!parsed.attendance || !Array.isArray(parsed.attendance)) {
+            parsed.attendance = JSON.parse(JSON.stringify((window.INITIAL_DATA && window.INITIAL_DATA.attendance) || []));
           }
-          if (!parsed.venues || !Array.isArray(parsed.venues)) {
-            parsed.venues = JSON.parse(JSON.stringify((window.INITIAL_DATA && window.INITIAL_DATA.venues) || []));
+          // Sync formTeacherId from initial data if missing in existing local storage
+          if (window.INITIAL_DATA && window.INITIAL_DATA.classes) {
+            parsed.classes.forEach(c => {
+              if (!c.formTeacherId) {
+                const initCls = window.INITIAL_DATA.classes.find(ic => ic.id === c.id);
+                if (initCls && initCls.formTeacherId) {
+                  c.formTeacherId = initCls.formTeacherId;
+                }
+              }
+            });
           }
           return parsed;
         }
-      }
     } catch (e) {
       console.warn("Could not load from localStorage, initializing fresh state", e);
     }
@@ -418,35 +424,87 @@ class Store {
     });
   }
 
-  assignTeacherToClass(teacherId, classId, subjectId, session = null) {
+  // Form Teacher (Class Master) Management (Audio Requirement)
+  getClassFormTeacher(classId) {
+    const cls = this.getClassById(classId);
+    if (!cls || !cls.formTeacherId) return null;
+    return this.getTeacherById(cls.formTeacherId);
+  }
+
+  setClassFormTeacher(classId, teacherId, session = null) {
+    const cls = this.getClassById(classId);
+    const teacher = this.getTeacherById(teacherId);
+    if (!cls) return null;
+
+    const oldTeacher = cls.formTeacherId ? this.getTeacherById(cls.formTeacherId) : null;
+    cls.formTeacherId = teacherId || null;
+
+    if (teacher) {
+      this.addAuditLog(
+        "Designated Form Teacher",
+        `${teacher.name} appointed as Form Teacher for ${cls.name} (${cls.session})`,
+        oldTeacher ? `Replaced ${oldTeacher.name}` : `Initial assignment`
+      );
+    } else {
+      this.addAuditLog("Removed Form Teacher", `Form teacher removed from ${cls.name}`);
+    }
+
+    cls.teachersCount = this.getClassTeachers(classId).length;
+    this.saveState();
+    return teacher;
+  }
+
+  removeFormTeacher(classId) {
+    return this.setClassFormTeacher(classId, null);
+  }
+
+  getTeacherFormClasses(teacherId, session = null) {
+    const sess = session || this.getCurrentSession();
+    return this.state.classes.filter(c => {
+      if (c.formTeacherId !== teacherId) return false;
+      if (sess && sess !== "all" && c.session !== sess) return false;
+      return true;
+    });
+  }
+
+  assignTeacherToClass(teacherId, classId, subjectId = null, session = null, isFormTeacher = false) {
     const teacher = this.getTeacherById(teacherId);
     const cls = this.getClassById(classId);
-    const sub = this.getSubjectById(subjectId);
     const sess = session || (cls ? cls.session : this.getCurrentSession());
 
-    if (!teacher || !cls || !sub) return;
+    if (!teacher || !cls) return;
 
-    // Check if assignment already exists for this exact session
-    const exists = this.state.teacherAssignments.some(
-      ta => ta.teacherId === teacherId && ta.classId === classId && ta.subjectId === subjectId && ta.session === sess
-    );
-
-    if (!exists) {
-      // Ensure subject is added to class
-      this.addClassSubject(classId, subjectId);
-
-      this.state.teacherAssignments.push({
-        id: "ta_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
-        teacherId,
-        classId,
-        subjectId,
-        session: sess
-      });
-
-      cls.teachersCount = this.getClassTeachers(classId).length;
-      this.addAuditLog("Assigned Teacher", `${teacher.name} -> ${cls.name} (${sub.name}) [${sess}]`);
-      this.saveState();
+    if (isFormTeacher) {
+      this.setClassFormTeacher(classId, teacherId, sess);
     }
+
+    if (subjectId) {
+      const sub = this.getSubjectById(subjectId);
+      if (sub) {
+        // Check if assignment already exists for this exact session
+        const exists = this.state.teacherAssignments.some(
+          ta => ta.teacherId === teacherId && ta.classId === classId && ta.subjectId === subjectId && ta.session === sess
+        );
+
+        if (!exists) {
+          // Ensure subject is added to class
+          this.addClassSubject(classId, subjectId);
+
+          this.state.teacherAssignments.push({
+            id: "ta_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
+            teacherId,
+            classId,
+            subjectId,
+            session: sess
+          });
+
+          this.addAuditLog("Assigned Subject Teacher", `${teacher.name} -> ${cls.name} (${sub.name}) [${sess}]`);
+        }
+      }
+    }
+
+    cls.teachersCount = this.getClassTeachers(classId).length;
+    this.saveState();
   }
 
   removeTeacherAssignment(assignmentId) {
@@ -463,16 +521,25 @@ class Store {
   }
 
   getClassTeachers(classId) {
+    const cls = this.getClassById(classId);
     const tas = this.state.teacherAssignments.filter(ta => ta.classId === classId);
     const teacherIds = [...new Set(tas.map(t => t.teacherId))];
+    
+    // Also ensure the Form Teacher is in the list of teachers if assigned
+    if (cls && cls.formTeacherId && !teacherIds.includes(cls.formTeacherId)) {
+      teacherIds.unshift(cls.formTeacherId);
+    }
+
     return teacherIds.map(id => {
       const teacher = this.getTeacherById(id);
       const subjectsForTeacherInClass = tas
         .filter(t => t.teacherId === id)
         .map(t => this.getSubjectById(t.subjectId))
         .filter(Boolean);
+      const isForm = cls && cls.formTeacherId === id;
       return {
         ...teacher,
+        isFormTeacher: isForm,
         assignedSubjects: subjectsForTeacherInClass
       };
     }).filter(t => Boolean(t.id));
@@ -481,13 +548,17 @@ class Store {
   getTeacherClasses(teacherId, session = null) {
     const sess = session || this.getCurrentSession();
     const tas = this.state.teacherAssignments.filter(ta => ta.teacherId === teacherId && (sess === "all" || ta.session === sess));
-    const classIds = [...new Set(tas.map(t => t.classId))];
+    const formClasses = this.state.classes.filter(c => c.formTeacherId === teacherId && (sess === "all" || c.session === sess));
+    const classIds = [...new Set([...tas.map(t => t.classId), ...formClasses.map(c => c.id)])];
+
     return classIds.map(id => {
       const cls = this.getClassById(id);
       const subjects = tas.filter(t => t.classId === id).map(t => this.getSubjectById(t.subjectId)).filter(Boolean);
       const students = this.getClassStudents(id);
+      const isForm = cls && cls.formTeacherId === teacherId;
       return {
         ...cls,
+        isFormTeacher: isForm,
         assignedSubjects: subjects,
         studentCount: students.length
       };
@@ -1269,461 +1340,207 @@ class Store {
   }
 
   // --------------------------------------------------------------------------
-  // Timetable & Schedule Management with Real-Time Conflict Detection
+  // Class Daily Attendance Register & Form Teacher History Engine
   // --------------------------------------------------------------------------
-  getVenues() {
-    return this.state.venues || (window.INITIAL_DATA && window.INITIAL_DATA.venues) || [];
-  }
-
-  getTimetablePeriods() {
-    return this.state.timetablePeriods || (window.INITIAL_DATA && window.INITIAL_DATA.timetablePeriods) || [
-      { id: 1, label: "Period 1", time: "08:00 - 08:45", isBreak: false },
-      { id: 2, label: "Period 2", time: "08:45 - 09:30", isBreak: false },
-      { id: "break_1", label: "Morning Break / Assembly", time: "09:30 - 09:50", isBreak: true },
-      { id: 3, label: "Period 3", time: "09:50 - 10:35", isBreak: false },
-      { id: 4, label: "Period 4", time: "10:35 - 11:20", isBreak: false },
-      { id: "break_2", label: "Lunch & Recreation Break", time: "11:20 - 12:10", isBreak: true },
-      { id: 5, label: "Period 5", time: "12:10 - 12:55", isBreak: false },
-      { id: 6, label: "Period 6", time: "12:55 - 01:40", isBreak: false },
-      { id: 7, label: "Period 7", time: "01:40 - 02:25", isBreak: false }
-    ];
-  }
-
-  getTimetableDays() {
-    return this.state.timetableDays || ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-  }
-
-  getTimetableSlots(filters = {}) {
-    const slots = this.state.timetableSlots || [];
-    return slots.filter(slot => {
-      if (filters.classId && filters.classId !== "all" && slot.classId !== filters.classId) return false;
-      if (filters.teacherId && filters.teacherId !== "all" && slot.teacherId !== filters.teacherId) return false;
-      if (filters.subjectId && filters.subjectId !== "all" && slot.subjectId !== filters.subjectId) return false;
-      if (filters.session && filters.session !== "all" && slot.session !== filters.session) return false;
-      if (filters.term && filters.term !== "all" && slot.term !== filters.term) return false;
-      if (filters.day && filters.day !== "all" && slot.day !== filters.day) return false;
-      if (filters.periodNumber && filters.periodNumber !== "all" && String(slot.periodNumber) !== String(filters.periodNumber)) return false;
-      if (filters.room && filters.room !== "all" && slot.room !== filters.room) return false;
-      if (filters.search) {
-        const q = filters.search.toLowerCase();
-        const sub = this.getSubjectById(slot.subjectId)?.name.toLowerCase() || "";
-        const tch = this.getTeacherById(slot.teacherId)?.name.toLowerCase() || "";
-        const cls = this.getClassById(slot.classId)?.name.toLowerCase() || "";
-        const rm = (slot.room || "").toLowerCase();
-        if (!sub.includes(q) && !tch.includes(q) && !cls.includes(q) && !rm.includes(q)) {
-          return false;
-        }
-      }
+  getAttendanceList(filters = {}) {
+    let list = this.state.attendance || (window.INITIAL_DATA && window.INITIAL_DATA.attendance) || [];
+    return list.filter(att => {
+      if (filters.classId && att.classId !== filters.classId) return false;
+      if (filters.session && filters.session !== "all" && att.session !== filters.session) return false;
+      if (filters.term && filters.term !== "all" && att.term !== filters.term) return false;
+      if (filters.date && att.date !== filters.date) return false;
+      if (filters.markedBy && att.markedBy !== filters.markedBy) return false;
       return true;
     });
   }
 
-  getTimetableSlotById(slotId) {
-    return (this.state.timetableSlots || []).find(s => s.id === slotId);
-  }
-
-  /**
-   * Conflict Detection Engine
-   * Validates:
-   * 1. Teacher double-booking across different classes on the same day & period
-   * 2. Venue/Room double-booking by different classes on the same day & period
-   * 3. Class period collision (duplicate slot for the same class)
-   */
-  detectTimetableConflicts(slotData, excludeSlotId = null) {
-    const conflicts = [];
-    if (!slotData.day || !slotData.periodNumber || !slotData.session) {
-      return conflicts;
-    }
-
-    const allSlots = this.state.timetableSlots || [];
-    const targetPeriod = Number(slotData.periodNumber);
-    const targetDay = slotData.day;
-    const targetSession = slotData.session;
-    const targetTerm = slotData.term || this.getCurrentSession();
-    const targetTeacherId = slotData.teacherId;
-    const targetRoom = (slotData.room || "").trim();
-    const targetClassId = slotData.classId;
-
-    allSlots.forEach(other => {
-      if (excludeSlotId && other.id === excludeSlotId) return;
-      if (other.session !== targetSession) return;
-      if (targetTerm && other.term && other.term !== targetTerm) return;
-      if (other.day !== targetDay || Number(other.periodNumber) !== targetPeriod) return;
-
-      const otherClass = this.getClassById(other.classId);
-      const otherSubject = this.getSubjectById(other.subjectId);
-      const otherTeacher = this.getTeacherById(other.teacherId);
-      const className = otherClass ? otherClass.name : "Another Class";
-      const subjectName = otherSubject ? otherSubject.name : "Subject";
-      const teacherName = otherTeacher ? otherTeacher.name : "Teacher";
-
-      // 1. Teacher Double-Booking Clash (Different Class)
-      if (targetTeacherId && other.teacherId === targetTeacherId && other.classId !== targetClassId) {
-        conflicts.push({
-          type: "teacher",
-          severity: "high",
-          title: "Teacher Schedule Collision",
-          message: `${teacherName} is already assigned to teach ${subjectName} in ${className} on ${targetDay} (Period ${targetPeriod}).`,
-          conflictingSlot: other,
-          teacherName,
-          className,
-          subjectName,
-          day: targetDay,
-          periodNumber: targetPeriod
-        });
-      }
-
-      // 2. Room / Venue Double-Booking Clash (Different Class)
-      if (targetRoom && other.room && other.room.trim().toLowerCase() === targetRoom.toLowerCase() && other.classId !== targetClassId) {
-        conflicts.push({
-          type: "room",
-          severity: "high",
-          title: "Venue / Room Collision",
-          message: `Venue "${targetRoom}" is already booked by ${className} for ${subjectName} on ${targetDay} (Period ${targetPeriod}).`,
-          conflictingSlot: other,
-          room: targetRoom,
-          className,
-          subjectName,
-          day: targetDay,
-          periodNumber: targetPeriod
-        });
-      }
-
-      // 3. Same Class Duplicate Period Clash
-      if (other.classId === targetClassId) {
-        conflicts.push({
-          type: "class_duplicate",
-          severity: "medium",
-          title: "Class Period Overlap",
-          message: `${className} already has ${subjectName} scheduled for Period ${targetPeriod} on ${targetDay}. Saving will overwrite this slot.`,
-          conflictingSlot: other,
-          className,
-          subjectName,
-          day: targetDay,
-          periodNumber: targetPeriod
-        });
-      }
-    });
-
-    return conflicts;
-  }
-
-  /**
-   * Scans all slots for the given session and term and aggregates all collisions
-   */
-  getAllTimetableConflicts(session = null, term = null) {
+  getAttendanceRecord(classId, date, session = null) {
     const sess = session || this.getCurrentSession();
-    const slots = this.getTimetableSlots({ session: sess, term });
-    const conflictsList = [];
-    const seenPairs = new Set();
-
-    for (let i = 0; i < slots.length; i++) {
-      for (let j = i + 1; j < slots.length; j++) {
-        const s1 = slots[i];
-        const s2 = slots[j];
-
-        if (s1.day === s2.day && Number(s1.periodNumber) === Number(s2.periodNumber)) {
-          const pairKey = [s1.id, s2.id].sort().join("_");
-          if (seenPairs.has(pairKey)) continue;
-
-          const cls1 = this.getClassById(s1.classId);
-          const cls2 = this.getClassById(s2.classId);
-          const sub1 = this.getSubjectById(s1.subjectId);
-          const sub2 = this.getSubjectById(s2.subjectId);
-          const tch1 = this.getTeacherById(s1.teacherId);
-          const tch2 = this.getTeacherById(s2.teacherId);
-
-          // Teacher clash
-          if (s1.teacherId && s1.teacherId === s2.teacherId && s1.classId !== s2.classId) {
-            seenPairs.add(pairKey);
-            conflictsList.push({
-              id: "tc_" + pairKey,
-              type: "teacher",
-              severity: "critical",
-              title: `Teacher Double-Booking: ${tch1?.name || 'Teacher'}`,
-              description: `${tch1?.name || 'Teacher'} is scheduled simultaneously in ${cls1?.name || 'Class 1'} (${sub1?.name || 'Subject'}) and ${cls2?.name || 'Class 2'} (${sub2?.name || 'Subject'}) on ${s1.day}, Period ${s1.periodNumber}.`,
-              slotA: s1,
-              slotB: s2,
-              day: s1.day,
-              periodNumber: s1.periodNumber,
-              teacher: tch1,
-              classA: cls1,
-              classB: cls2
-            });
-          }
-
-          // Room clash
-          if (s1.room && s2.room && s1.room.trim().toLowerCase() === s2.room.trim().toLowerCase() && s1.classId !== s2.classId) {
-            seenPairs.add(pairKey);
-            conflictsList.push({
-              id: "rc_" + pairKey,
-              type: "room",
-              severity: "warning",
-              title: `Venue Clash: ${s1.room}`,
-              description: `Venue "${s1.room}" is booked at the same time by ${cls1?.name || 'Class 1'} (${sub1?.name || 'Subject'}) and ${cls2?.name || 'Class 2'} (${sub2?.name || 'Subject'}) on ${s1.day}, Period ${s1.periodNumber}.`,
-              slotA: s1,
-              slotB: s2,
-              day: s1.day,
-              periodNumber: s1.periodNumber,
-              room: s1.room,
-              classA: cls1,
-              classB: cls2
-            });
-          }
-        }
-      }
-    }
-
-    return {
-      session: sess,
-      term: term || "All Terms",
-      totalConflicts: conflictsList.length,
-      conflicts: conflictsList,
-      teacherConflicts: conflictsList.filter(c => c.type === "teacher"),
-      roomConflicts: conflictsList.filter(c => c.type === "room")
-    };
+    if (!this.state.attendance) this.state.attendance = (window.INITIAL_DATA && window.INITIAL_DATA.attendance) ? JSON.parse(JSON.stringify(window.INITIAL_DATA.attendance)) : [];
+    return this.state.attendance.find(a => a.classId === classId && a.date === date && (!sess || sess === "all" || a.session === sess));
   }
 
-  saveTimetableSlot(slotData) {
-    if (!this.state.timetableSlots) this.state.timetableSlots = [];
-    const cls = this.getClassById(slotData.classId);
-    const sub = this.getSubjectById(slotData.subjectId);
-    const tch = this.getTeacherById(slotData.teacherId);
-    const session = slotData.session || cls?.session || this.getCurrentSession();
-    const term = slotData.term || this.state.school.currentTerm || "First Term";
+  saveAttendanceRecord(payload) {
+    if (!this.state.attendance) this.state.attendance = [];
+    const cls = this.getClassById(payload.classId);
+    const sess = payload.session || (cls ? cls.session : this.getCurrentSession());
+    const term = payload.term || this.state.school.currentTerm || "First Term";
+    const date = payload.date; // "YYYY-MM-DD"
+    const markedBy = payload.markedBy;
+    const teacher = this.getTeacherById(markedBy);
 
-    let slotId = slotData.id;
-    let isNew = false;
+    const existingIndex = this.state.attendance.findIndex(
+      a => a.classId === payload.classId && a.date === date && a.session === sess
+    );
 
-    if (!slotId) {
-      isNew = true;
-      slotId = "tt_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
-    }
-
-    const newSlot = {
-      id: slotId,
-      classId: slotData.classId,
-      session,
-      term,
-      day: slotData.day,
-      periodNumber: Number(slotData.periodNumber),
-      subjectId: slotData.subjectId,
-      teacherId: slotData.teacherId,
-      room: slotData.room || (cls ? `Room ${cls.name}` : "Main Classroom"),
-      type: slotData.type || "Lecture",
-      notes: slotData.notes || ""
+    const recordObj = {
+      id: existingIndex >= 0 ? this.state.attendance[existingIndex].id : "att_" + payload.classId + "_" + date + "_" + Date.now().toString(36),
+      classId: payload.classId,
+      session: sess,
+      term: term,
+      date: date,
+      markedBy: markedBy,
+      markedByName: teacher ? teacher.name : (payload.markedByName || "Form Teacher"),
+      markedAt: new Date().toISOString(),
+      notes: payload.notes || "",
+      records: payload.records || [] // array of { studentId, status: 'present'|'absent'|'late'|'excused', remark }
     };
 
-    // Remove any exact duplicate slot for the same class, session, term, day, and period
-    this.state.timetableSlots = this.state.timetableSlots.filter(s => {
-      if (s.id === slotId) return false;
-      if (s.classId === newSlot.classId && s.session === newSlot.session && s.term === newSlot.term && s.day === newSlot.day && Number(s.periodNumber) === Number(newSlot.periodNumber)) {
-        return false;
-      }
-      return true;
-    });
+    if (existingIndex >= 0) {
+      this.state.attendance[existingIndex] = recordObj;
+    } else {
+      this.state.attendance.unshift(recordObj);
+    }
 
-    this.state.timetableSlots.push(newSlot);
+    const presentCount = recordObj.records.filter(r => r.status === "present" || r.status === "late").length;
+    const totalCount = recordObj.records.length;
+    const percent = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
 
     this.addAuditLog(
-      isNew ? "Added Timetable Period" : "Updated Timetable Period",
-      `${cls?.name || 'Class'} - ${sub?.name || 'Subject'} (${newSlot.day} P${newSlot.periodNumber})`,
-      `Teacher: ${tch?.name || 'Unassigned'}, Venue: ${newSlot.room}`
+      "Marked Class Attendance",
+      `${cls?.name || 'Class'} (${date}) • ${recordObj.markedByName}`,
+      `${presentCount}/${totalCount} Students Present (${percent}%)`
     );
 
     this.saveState();
-    return newSlot;
+    return recordObj;
   }
 
-  deleteTimetableSlot(slotId) {
-    const slot = this.getTimetableSlotById(slotId);
-    if (!slot) return;
-    const cls = this.getClassById(slot.classId);
-    const sub = this.getSubjectById(slot.subjectId);
+  getAttendanceDatesForMonth(classId, year, month, session = null) {
+    // year: number/string (e.g. 2026), month: 1-12
+    const mStr = String(month).padStart(2, "0");
+    const yStr = String(year);
+    const prefix = `${yStr}-${mStr}`;
 
-    this.state.timetableSlots = (this.state.timetableSlots || []).filter(s => s.id !== slotId);
-    this.addAuditLog("Deleted Timetable Period", `${cls?.name || 'Class'} - ${sub?.name || 'Subject'} (${slot.day} P${slot.periodNumber})`);
-    this.saveState();
-  }
-
-  clearClassTimetable(classId, session = null, term = null) {
-    const sess = session || this.getCurrentSession();
-    const cls = this.getClassById(classId);
-
-    this.state.timetableSlots = (this.state.timetableSlots || []).filter(s => {
-      if (s.classId !== classId) return true;
-      if (sess && s.session !== sess) return true;
-      if (term && term !== "all" && s.term !== term) return true;
-      return false;
+    const list = (this.state.attendance || []).filter(a => {
+      if (a.classId !== classId) return false;
+      if (session && session !== "all" && a.session !== session) return false;
+      return a.date && a.date.startsWith(prefix);
     });
 
-    this.addAuditLog("Cleared Class Timetable", `${cls?.name || classId} (${sess} ${term || ''})`);
-    this.saveState();
+    const datesMap = {};
+    list.forEach(a => {
+      const records = a.records || [];
+      const total = records.length;
+      const present = records.filter(r => r.status === "present").length;
+      const late = records.filter(r => r.status === "late").length;
+      const absent = records.filter(r => r.status === "absent").length;
+      const excused = records.filter(r => r.status === "excused").length;
+      const rate = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
+
+      datesMap[a.date] = {
+        date: a.date,
+        marked: true,
+        markedBy: a.markedByName || "Form Teacher",
+        markedAt: a.markedAt,
+        total,
+        present,
+        late,
+        absent,
+        excused,
+        rate
+      };
+    });
+
+    return datesMap;
   }
 
-  /**
-   * Smart Timetable Generator
-   * Auto-allocates periods across Monday - Friday (7 periods / day)
-   * avoiding clashes with other classes and assigning appropriate venues.
-   */
-  autoGenerateClassTimetable(classId, session = null, term = null, overwrite = true) {
-    const cls = this.getClassById(classId);
-    if (!cls) throw new Error("Class not found");
-    const sess = session || cls.session || this.getCurrentSession();
-    const trm = term || this.state.school.currentTerm || "First Term";
+  getClassAttendanceStats(classId, date, session = null) {
+    const students = this.getClassStudents(classId);
+    const record = this.getAttendanceRecord(classId, date, session);
 
-    if (overwrite) {
-      this.clearClassTimetable(classId, sess, trm);
+    if (!record || !record.records || record.records.length === 0) {
+      return {
+        isMarked: false,
+        totalStudents: students.length,
+        presentCount: 0,
+        absentCount: 0,
+        lateCount: 0,
+        excusedCount: 0,
+        attendanceRate: 0,
+        markedByName: null,
+        markedAt: null,
+        notes: "",
+        recordsMap: {}
+      };
     }
 
-    const classSubjects = this.getClassSubjects(classId);
-    if (classSubjects.length === 0) {
-      throw new Error(`Class ${cls.name} has no subjects assigned yet. Please assign subjects first.`);
-    }
+    const recordsMap = {};
+    record.records.forEach(r => {
+      recordsMap[r.studentId] = r;
+    });
 
-    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-    const periods = [1, 2, 3, 4, 5, 6, 7];
-    const defaultRoom = `Room ${cls.name}`;
+    let present = 0;
+    let absent = 0;
+    let late = 0;
+    let excused = 0;
 
-    // Map subjects to preferred venues
-    const getPreferredRoom = (sub) => {
-      const code = (sub.code || "").toUpperCase();
-      const name = sub.name.toLowerCase();
-      if (name.includes("physics") || name.includes("chemistry") || code === "CHM" || code === "PHY") {
-        return "Science Lab (Physics & Chemistry)";
+    // Evaluate for every current student in class
+    students.forEach(st => {
+      const rec = recordsMap[st.id];
+      if (rec) {
+        if (rec.status === "present") present++;
+        else if (rec.status === "absent") absent++;
+        else if (rec.status === "late") late++;
+        else if (rec.status === "excused") excused++;
+      } else {
+        absent++;
       }
-      if (name.includes("biology") || name.includes("agric") || code === "BIO" || code === "AGR") {
-        return "Biology & Agricultural Lab";
-      }
-      if (name.includes("computer") || code === "CMP" || name.includes("ict")) {
-        return "Computer Science & ICT Suite";
-      }
-      if (name.includes("art") || name.includes("design")) {
-        return "Fine Arts & Design Studio";
-      }
-      if (name.includes("physical") || name.includes("sport")) {
-        return "Sports Pavilion & Field";
-      }
-      return defaultRoom;
+    });
+
+    const total = students.length;
+    const effectivePresent = present + late;
+    const rate = total > 0 ? Math.round((effectivePresent / total) * 100) : 0;
+
+    return {
+      isMarked: true,
+      totalStudents: total,
+      presentCount: present,
+      absentCount: absent,
+      lateCount: late,
+      excusedCount: excused,
+      attendanceRate: rate,
+      markedByName: record.markedByName,
+      markedAt: record.markedAt,
+      notes: record.notes || "",
+      recordsMap
     };
+  }
 
-    // Calculate period weight per subject (core subjects get 4-5 periods, others 2-3)
-    const subjectQueue = [];
-    classSubjects.forEach(sub => {
-      const isCore = ["Mathematics", "English Language", "Biology", "Physics", "Chemistry"].includes(sub.name);
-      const count = isCore ? 5 : 3;
-      // Find teacher assigned for this subject in this class
-      const teacher = this.getSubjectTeacherForClass(cls.id, sub.id);
-      const teacherId = teacher ? teacher.id : (this.state.teachers[0]?.id || "tch_john");
-      const room = getPreferredRoom(sub);
+  getStudentAttendanceSummary(studentId, session = null, term = null) {
+    const sess = session || this.getCurrentSession();
+    const list = (this.state.attendance || []).filter(a => {
+      if (sess && sess !== "all" && a.session !== sess) return false;
+      if (term && term !== "all" && a.term !== term) return false;
+      return (a.records || []).some(r => r.studentId === studentId);
+    });
 
-      for (let i = 0; i < count; i++) {
-        subjectQueue.push({
-          subjectId: sub.id,
-          subjectName: sub.name,
-          teacherId,
-          room,
-          type: (room.includes("Lab") || room.includes("Suite")) && i % 2 === 1 ? "Practical" : (i === count - 1 ? "Tutorial" : "Lecture")
-        });
+    let totalDays = list.length;
+    let presentDays = 0;
+    let absentDays = 0;
+    let lateDays = 0;
+    let excusedDays = 0;
+
+    list.forEach(a => {
+      const r = a.records.find(rec => rec.studentId === studentId);
+      if (r) {
+        if (r.status === "present") presentDays++;
+        else if (r.status === "absent") absentDays++;
+        else if (r.status === "late") lateDays++;
+        else if (r.status === "excused") excusedDays++;
       }
     });
 
-    // Fill the 35 weekly slots
-    let queueIdx = 0;
-    const generatedSlots = [];
+    const rate = totalDays > 0 ? Math.round(((presentDays + lateDays) / totalDays) * 100) : 100;
 
-    days.forEach(day => {
-      periods.forEach(periodNum => {
-        if (queueIdx >= subjectQueue.length) {
-          queueIdx = 0; // Wrap around if needed
-        }
-
-        let chosen = null;
-        let attempts = 0;
-
-        // Try to find a subject that has no teacher clash for this day & period
-        while (attempts < subjectQueue.length) {
-          const candidate = subjectQueue[(queueIdx + attempts) % subjectQueue.length];
-          const testSlot = {
-            classId: cls.id,
-            session: sess,
-            term: trm,
-            day,
-            periodNumber: periodNum,
-            teacherId: candidate.teacherId,
-            room: candidate.room
-          };
-          const conflicts = this.detectTimetableConflicts(testSlot);
-          const hasTeacherConflict = conflicts.some(c => c.type === "teacher");
-
-          if (!hasTeacherConflict) {
-            chosen = candidate;
-            queueIdx = (queueIdx + attempts + 1) % subjectQueue.length;
-            break;
-          }
-          attempts++;
-        }
-
-        if (!chosen) {
-          chosen = subjectQueue[queueIdx % subjectQueue.length];
-          queueIdx++;
-        }
-
-        const slot = this.saveTimetableSlot({
-          classId: cls.id,
-          session: sess,
-          term: trm,
-          day,
-          periodNumber: periodNum,
-          subjectId: chosen.subjectId,
-          teacherId: chosen.teacherId,
-          room: chosen.room,
-          type: chosen.type,
-          notes: `${cls.name} standard curriculum session`
-        });
-
-        generatedSlots.push(slot);
-      });
-    });
-
-    this.addAuditLog("Auto-Generated Weekly Schedule", `${cls.name} (${sess} • ${trm})`, `Allocated ${generatedSlots.length} weekly periods.`);
-    this.saveState();
-    return generatedSlots;
-  }
-
-  copyClassTimetable(sourceClassId, targetClassId, session = null, term = null) {
-    const srcClass = this.getClassById(sourceClassId);
-    const tgtClass = this.getClassById(targetClassId);
-    if (!srcClass || !tgtClass) throw new Error("Source or Target class not found.");
-
-    const sess = session || tgtClass.session || this.getCurrentSession();
-    const trm = term || this.state.school.currentTerm || "First Term";
-    const srcSlots = this.getTimetableSlots({ classId: sourceClassId, session: sess, term: trm });
-
-    if (srcSlots.length === 0) {
-      throw new Error(`No timetable periods found in ${srcClass.name} to copy.`);
-    }
-
-    const copied = [];
-    srcSlots.forEach(slot => {
-      const newSlot = this.saveTimetableSlot({
-        classId: targetClassId,
-        session: sess,
-        term: trm,
-        day: slot.day,
-        periodNumber: slot.periodNumber,
-        subjectId: slot.subjectId,
-        teacherId: slot.teacherId,
-        room: slot.room.includes("Lab") || slot.room.includes("Suite") ? slot.room : `Room ${tgtClass.name}`,
-        type: slot.type,
-        notes: `Copied from ${srcClass.name}`
-      });
-      copied.push(newSlot);
-    });
-
-    this.addAuditLog("Copied Timetable Schedule", `From ${srcClass.name} to ${tgtClass.name} (${sess})`, `Transferred ${copied.length} periods.`);
-    this.saveState();
-    return copied;
+    return {
+      totalDays,
+      presentDays,
+      absentDays,
+      lateDays,
+      excusedDays,
+      rate
+    };
   }
 }
 

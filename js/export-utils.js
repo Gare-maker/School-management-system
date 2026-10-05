@@ -1337,21 +1337,26 @@ class ExportUtils {
   /**
    * Interactive Print Window for Official School Weekly Timetable
    */
-  static printTimetable(classObj, slots, periods, days, school = window.store.getSchool(), session = "2026/2027", term = "First Term") {
-    const printWin = window.open("", "_blank", "width=1050,height=750");
+  /**
+   * Interactive Print Window for Official Class Daily Attendance Register
+   */
+  static printAttendanceRegister(classObj, date, stats, students, school = window.store.getSchool(), session = "2026/2027", term = "First Term") {
+    const printWin = window.open("", "_blank", "width=1000,height=750");
     if (!printWin) {
-      alert("Please allow popups to print the timetable.");
+      alert("Please allow popups to print the attendance register.");
       return;
     }
+
+    const formTeacher = window.store.getClassFormTeacher(classObj.id);
 
     const htmlContent = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8">
-        <title>${classObj ? classObj.name : "School"} Official Timetable • ${session}</title>
+        <title>${classObj ? classObj.name : "Class"} Attendance Register • ${date}</title>
         <style>
-          @page { size: landscape; margin: 12mm; }
+          @page { size: portrait; margin: 15mm; }
           body {
             font-family: 'Times New Roman', Times, serif;
             color: #111;
@@ -1380,12 +1385,34 @@ class ExportUtils {
             color: #475569;
             margin: 2px 0 6px 0;
           }
-          .timetable-meta {
-            font-size: 12.5pt;
+          .reg-meta {
+            font-size: 13pt;
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin-top: 4px;
+            margin-top: 6px;
+          }
+          .summary-cards {
+            display: flex;
+            justify-content: space-between;
+            margin: 14px 0;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            padding: 10px 16px;
+            border-radius: 4px;
+          }
+          .summary-item {
+            text-align: center;
+          }
+          .summary-val {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #0f172a;
+          }
+          .summary-lbl {
+            font-size: 9pt;
+            text-transform: uppercase;
+            color: #64748b;
           }
           table {
             width: 100%;
@@ -1394,8 +1421,8 @@ class ExportUtils {
           }
           th, td {
             border: 1px solid #334155;
-            padding: 8px 6px;
-            text-align: center;
+            padding: 8px 10px;
+            text-align: left;
             font-size: 10pt;
           }
           th {
@@ -1403,51 +1430,31 @@ class ExportUtils {
             font-weight: bold;
             color: #0f172a;
           }
-          .period-th {
-            width: 12%;
-          }
-          .break-row-cell {
-            background-color: #f8fafc;
+          .status-badge {
             font-weight: bold;
-            font-style: italic;
-            color: #475569;
-            text-align: center;
-            letter-spacing: 1px;
-            padding: 6px;
-          }
-          .slot-subject {
-            font-weight: bold;
-            color: #0f172a;
-            font-size: 10.5pt;
-          }
-          .slot-teacher {
+            text-transform: uppercase;
             font-size: 9pt;
-            color: #334155;
-            margin-top: 2px;
+            padding: 2px 6px;
+            border-radius: 3px;
           }
-          .slot-venue {
-            font-size: 8.5pt;
-            color: #64748b;
-            font-style: italic;
-          }
-          .empty-slot {
-            color: #cbd5e1;
-            font-size: 9pt;
-          }
+          .status-present { color: #166534; background: #dcfce7; }
+          .status-absent { color: #991b1b; background: #fee2e2; }
+          .status-late { color: #92400e; background: #fef3c7; }
+          .status-excused { color: #1e40af; background: #dbeafe; }
           .footer-signatures {
             display: flex;
             justify-content: space-between;
-            margin-top: 30px;
-            padding: 0 40px;
+            margin-top: 40px;
+            padding: 0 30px;
             page-break-inside: avoid;
           }
           .sig-box {
             text-align: center;
-            width: 200px;
+            width: 220px;
           }
           .sig-line {
             border-top: 1px dashed #333;
-            margin-top: 40px;
+            margin-top: 45px;
             padding-top: 4px;
             font-size: 10pt;
             font-weight: bold;
@@ -1459,44 +1466,59 @@ class ExportUtils {
           <div class="school-name">${school.name || "Crown Hill Academy"}</div>
           <div class="school-motto">"${school.motto || "Excellence, Integrity and Innovation"}"</div>
           <div style="font-size: 9.5pt; color: #64748b;">${school.address || "Lagos, Nigeria"} • Tel: ${school.phone || "+234 803 123 4567"}</div>
-          <div class="timetable-meta">
-            OFFICIAL CLASS TIMETABLE — ${classObj ? classObj.name : "ALL CLASSES"} (${session} • ${term})
+          <div class="reg-meta">
+            DAILY ATTENDANCE REGISTER — ${classObj?.name || 'Class'} (${date})
+          </div>
+          <div style="font-size:10pt; color:#334155; margin-top:3px;">
+            Academic Session: <strong>${session}</strong> • <strong>${term}</strong> • Form Teacher: <strong>${formTeacher?.name || 'Form Master'}</strong>
+          </div>
+        </div>
+
+        <div class="summary-cards">
+          <div class="summary-item">
+            <div class="summary-val">${stats.totalStudents}</div>
+            <div class="summary-lbl">Total Students</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-val" style="color:#166534;">${stats.presentCount}</div>
+            <div class="summary-lbl">Present</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-val" style="color:#991b1b;">${stats.absentCount}</div>
+            <div class="summary-lbl">Absent</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-val" style="color:#2563eb;">${stats.attendanceRate}%</div>
+            <div class="summary-lbl">Attendance Rate</div>
           </div>
         </div>
 
         <table>
           <thead>
             <tr>
-              <th style="width: 12%;">DAY / PERIOD</th>
-              ${periods.filter(p => !p.isBreak).map(p => `
-                <th class="period-th">
-                  ${p.label}<br>
-                  <span style="font-weight: normal; font-size: 8.5pt; color: #475569;">${p.time}</span>
-                </th>
-              `).join("")}
+              <th style="width: 35px; text-align:center;">#</th>
+              <th>Student Name</th>
+              <th style="width: 110px;">Student ID</th>
+              <th style="width: 110px;">Admission No</th>
+              <th style="width: 100px; text-align:center;">Status</th>
+              <th>Remarks / Notes</th>
             </tr>
           </thead>
           <tbody>
-            ${days.map(day => {
-              const activePeriods = periods.filter(p => !p.isBreak);
+            ${students.map((st, idx) => {
+              const rec = stats.recordsMap ? stats.recordsMap[st.id] : null;
+              const status = rec ? rec.status : "absent";
+              const remark = rec ? (rec.remark || "") : "";
               return `
                 <tr>
-                  <td style="font-weight: bold; background-color: #f8fafc; text-align: left; padding-left: 10px;">${day.toUpperCase()}</td>
-                  ${activePeriods.map(p => {
-                    const slot = slots.find(s => s.day === day && Number(s.periodNumber) === Number(p.id));
-                    if (!slot) {
-                      return `<td><span class="empty-slot">— Free —</span></td>`;
-                    }
-                    const sub = window.store.getSubjectById(slot.subjectId);
-                    const tch = window.store.getTeacherById(slot.teacherId);
-                    return `
-                      <td>
-                        <div class="slot-subject">${sub?.name || "Subject"}</div>
-                        <div class="slot-teacher">${tch?.name || "Teacher"}</div>
-                        <div class="slot-venue">${slot.room || ""}</div>
-                      </td>
-                    `;
-                  }).join("")}
+                  <td style="text-align:center; color:#64748b;">${idx + 1}</td>
+                  <td style="font-weight:bold;">${st.name}</td>
+                  <td><code>${st.studentId}</code></td>
+                  <td>${st.admissionNo || "—"}</td>
+                  <td style="text-align:center;">
+                    <span class="status-badge status-${status}">${status}</span>
+                  </td>
+                  <td>${remark || "—"}</td>
                 </tr>
               `;
             }).join("")}
@@ -1505,10 +1527,10 @@ class ExportUtils {
 
         <div class="footer-signatures">
           <div class="sig-box">
-            <div class="sig-line">Dean of Studies / Timetable Master</div>
+            <div class="sig-line">Form Teacher (${formTeacher?.name || 'Class Master'})</div>
           </div>
           <div class="sig-box">
-            <div class="sig-line">Form Teacher / Level Coordinator</div>
+            <div class="sig-line">Vice Principal (Academics)</div>
           </div>
           <div class="sig-box">
             <div class="sig-line">${school.principalName || "Principal & Head of School"}</div>
@@ -1523,38 +1545,28 @@ class ExportUtils {
   }
 
   /**
-   * Export Timetable Grid to CSV
+   * Export Attendance Register to CSV
    */
-  static downloadTimetableCSV(classObj, slots, periods, days, session = "2026/2027", term = "First Term") {
+  static downloadAttendanceCSV(classObj, date, stats, students, session = "2026/2027", term = "First Term") {
     let csv = `sep=,\n`;
-    csv += `"Crown Hill Academy - Class Weekly Timetable"\n`;
-    csv += `"Class: ${classObj?.name || 'Class'}","Session: ${session}","Term: ${term}"\n\n`;
+    csv += `"Crown Hill Academy - Class Attendance Register"\n`;
+    csv += `"Class: ${classObj?.name || 'Class'}","Date: ${date}","Session: ${session}","Term: ${term}"\n`;
+    csv += `"Total Students: ${stats.totalStudents}","Present: ${stats.presentCount}","Absent: ${stats.absentCount}","Rate: ${stats.attendanceRate}%"\n\n`;
 
-    const activePeriods = periods.filter(p => !p.isBreak);
-    const headers = ["Day", ...activePeriods.map(p => `${p.label} (${p.time})`)];
-    csv += headers.map(h => `"${h}"`).join(",") + "\n";
+    csv += `"S/N","Student Name","Student ID","Admission No","Gender","Attendance Status","Remarks"\n`;
 
-    days.forEach(day => {
-      const row = [day];
-      activePeriods.forEach(p => {
-        const slot = slots.find(s => s.day === day && Number(s.periodNumber) === Number(p.id));
-        if (slot) {
-          const sub = window.store.getSubjectById(slot.subjectId)?.name || "Subject";
-          const tch = window.store.getTeacherById(slot.teacherId)?.name || "";
-          const rm = slot.room || "";
-          row.push(`${sub} [${tch}] (${rm})`);
-        } else {
-          row.push("Free");
-        }
-      });
-      csv += row.map(v => `"${v}"`).join(",") + "\n";
+    students.forEach((st, idx) => {
+      const rec = stats.recordsMap ? stats.recordsMap[st.id] : null;
+      const status = rec ? rec.status : "absent";
+      const remark = rec ? (rec.remark || "") : "";
+      csv += `"${idx + 1}","${st.name}","${st.studentId}","${st.admissionNo || ''}","${st.gender || ''}","${status}","${remark}"\n`;
     });
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${classObj?.name || 'Class'}_Timetable_${session.replace(/\//g, "-")}.csv`;
+    link.download = `${classObj?.name || 'Class'}_Attendance_${date}.csv`;
     document.body.appendChild(link);
     link.click();
     setTimeout(() => {

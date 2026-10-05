@@ -58,15 +58,15 @@ window.INITIAL_DATA = {
   // Classes: Every class is strictly bound to an academic session
   classes: [
     // 2026/2027 Session Classes
-    { id: "cls_2026_js1a", name: "JS1A", level: "JS1", section: "A", category: "Junior Secondary", session: "2026/2027", status: "Active", studentCount: 32, subjectsCount: 8, teachersCount: 3 },
-    { id: "cls_2026_js1b", name: "JS1B", level: "JS1", section: "B", category: "Junior Secondary", session: "2026/2027", status: "Active", studentCount: 30, subjectsCount: 8, teachersCount: 3 },
-    { id: "cls_2026_js2a", name: "JS2A", level: "JS2", section: "A", category: "Junior Secondary", session: "2026/2027", status: "Active", studentCount: 34, subjectsCount: 8, teachersCount: 3 },
-    { id: "cls_2026_js2b", name: "JS2B", level: "JS2", section: "B", category: "Junior Secondary", session: "2026/2027", status: "Active", studentCount: 31, subjectsCount: 8, teachersCount: 3 },
-    { id: "cls_2026_js3a", name: "JS3A", level: "JS3", section: "A", category: "Junior Secondary", session: "2026/2027", status: "Active", studentCount: 35, subjectsCount: 8, teachersCount: 3 },
-    { id: "cls_2026_ss1a", name: "SS1A", level: "SS1", section: "A", category: "Senior Secondary", session: "2026/2027", status: "Active", studentCount: 36, subjectsCount: 7, teachersCount: 4 },
-    { id: "cls_2026_ss2a", name: "SS2A", level: "SS2", section: "A", category: "Senior Secondary", session: "2026/2027", status: "Active", studentCount: 32, subjectsCount: 6, teachersCount: 4 },
-    { id: "cls_2026_ss2b", name: "SS2B", level: "SS2", section: "B", category: "Senior Secondary", session: "2026/2027", status: "Active", studentCount: 28, subjectsCount: 6, teachersCount: 4 },
-    { id: "cls_2026_ss3a", name: "SS3A", level: "SS3", section: "A", category: "Senior Secondary", session: "2026/2027", status: "Active", studentCount: 36, subjectsCount: 6, teachersCount: 4 },
+    { id: "cls_2026_js1a", name: "JS1A", level: "JS1", section: "A", category: "Junior Secondary", session: "2026/2027", status: "Active", studentCount: 32, subjectsCount: 8, teachersCount: 3, formTeacherId: "tch_jane" },
+    { id: "cls_2026_js1b", name: "JS1B", level: "JS1", section: "B", category: "Junior Secondary", session: "2026/2027", status: "Active", studentCount: 30, subjectsCount: 8, teachersCount: 3, formTeacherId: "tch_jane" },
+    { id: "cls_2026_js2a", name: "JS2A", level: "JS2", section: "A", category: "Junior Secondary", session: "2026/2027", status: "Active", studentCount: 34, subjectsCount: 8, teachersCount: 3, formTeacherId: "tch_grace" },
+    { id: "cls_2026_js2b", name: "JS2B", level: "JS2", section: "B", category: "Junior Secondary", session: "2026/2027", status: "Active", studentCount: 31, subjectsCount: 8, teachersCount: 3, formTeacherId: "tch_grace" },
+    { id: "cls_2026_js3a", name: "JS3A", level: "JS3", section: "A", category: "Junior Secondary", session: "2026/2027", status: "Active", studentCount: 35, subjectsCount: 8, teachersCount: 3, formTeacherId: "tch_david" },
+    { id: "cls_2026_ss1a", name: "SS1A", level: "SS1", section: "A", category: "Senior Secondary", session: "2026/2027", status: "Active", studentCount: 36, subjectsCount: 7, teachersCount: 4, formTeacherId: "tch_david" },
+    { id: "cls_2026_ss2a", name: "SS2A", level: "SS2", section: "A", category: "Senior Secondary", session: "2026/2027", status: "Active", studentCount: 32, subjectsCount: 6, teachersCount: 4, formTeacherId: "tch_john" },
+    { id: "cls_2026_ss2b", name: "SS2B", level: "SS2", section: "B", category: "Senior Secondary", session: "2026/2027", status: "Active", studentCount: 28, subjectsCount: 6, teachersCount: 4, formTeacherId: "tch_john" },
+    { id: "cls_2026_ss3a", name: "SS3A", level: "SS3", section: "A", category: "Senior Secondary", session: "2026/2027", status: "Active", studentCount: 36, subjectsCount: 6, teachersCount: 4, formTeacherId: "tch_grace" },
 
     // Historical 2025/2026 Session Classes (Preserved for historical integrity)
     { id: "cls_2025_js1a", name: "JS1A", level: "JS1", section: "A", category: "Junior Secondary", session: "2025/2026", status: "Completed", studentCount: 30, subjectsCount: 8, teachersCount: 3 },
@@ -1545,92 +1545,165 @@ window.INITIAL_DATA = {
     }
   ],
 
-  // Timetable Venues & Classrooms
-  venues: [
-    { id: "ven_ss2a", name: "Room SS2-A", type: "Classroom", capacity: 40, building: "Senior Block A" },
-    { id: "ven_ss2b", name: "Room SS2-B", type: "Classroom", capacity: 35, building: "Senior Block A" },
-    { id: "ven_ss1a", name: "Room SS1-A", type: "Classroom", capacity: 40, building: "Senior Block A" },
-    { id: "ven_ss3a", name: "Room SS3-A", type: "Classroom", capacity: 40, building: "Senior Block B" },
-    { id: "ven_js1a", name: "Room JS1-A", type: "Classroom", capacity: 45, building: "Junior Block A" },
-    { id: "ven_js2a", name: "Room JS2-A", type: "Classroom", capacity: 45, building: "Junior Block A" },
-    { id: "ven_js3a", name: "Room JS3-A", type: "Classroom", capacity: 45, building: "Junior Block B" },
-    { id: "ven_scilab", name: "Science Lab (Physics & Chemistry)", type: "Laboratory", capacity: 36, building: "Science Complex" },
-    { id: "ven_biolab", name: "Biology & Agricultural Lab", type: "Laboratory", capacity: 36, building: "Science Complex" },
-    { id: "ven_ict", name: "Computer Science & ICT Suite", type: "ICT Lab", capacity: 40, building: "Innovation Center" },
-    { id: "ven_art", name: "Fine Arts & Design Studio", type: "Studio", capacity: 30, building: "Creative Arts Block" },
-    { id: "ven_hall", name: "Multipurpose Assembly Hall", type: "Auditorium", capacity: 300, building: "Main Hall" },
-    { id: "ven_field", name: "Sports Pavilion & Field", type: "Sports", capacity: 200, building: "Athletic Grounds" }
-  ],
+  // Daily Attendance Register Records (Section: Form Teacher Daily Roll Call)
+  attendance: [
+    // SS2A Attendance History (Form Teacher: Mr. John Okafor - tch_john)
+    {
+      id: "att_ss2a_2026-10-05",
+      classId: "cls_2026_ss2a",
+      session: "2026/2027",
+      term: "First Term",
+      date: "2026-10-05",
+      markedBy: "tch_john",
+      markedByName: "Mr. John Okafor",
+      markedAt: "2026-10-05T08:15:00.000Z",
+      notes: "Morning roll call completed promptly. All students seated before assembly.",
+      records: [
+        { studentId: "stu_01", status: "present", remark: "" },
+        { studentId: "stu_02", status: "present", remark: "" },
+        { studentId: "stu_03", status: "absent", remark: "Medical leave approved by clinic" },
+        { studentId: "stu_04", status: "present", remark: "" },
+        { studentId: "stu_05", status: "present", remark: "" }
+      ]
+    },
+    {
+      id: "att_ss2a_2026-10-02",
+      classId: "cls_2026_ss2a",
+      session: "2026/2027",
+      term: "First Term",
+      date: "2026-10-02",
+      markedBy: "tch_john",
+      markedByName: "Mr. John Okafor",
+      markedAt: "2026-10-02T08:10:00.000Z",
+      notes: "Full attendance recorded ahead of inter-house debate.",
+      records: [
+        { studentId: "stu_01", status: "present", remark: "" },
+        { studentId: "stu_02", status: "present", remark: "" },
+        { studentId: "stu_03", status: "present", remark: "" },
+        { studentId: "stu_04", status: "present", remark: "" },
+        { studentId: "stu_05", status: "present", remark: "" }
+      ]
+    },
+    {
+      id: "att_ss2a_2026-10-01",
+      classId: "cls_2026_ss2a",
+      session: "2026/2027",
+      term: "First Term",
+      date: "2026-10-01",
+      markedBy: "tch_john",
+      markedByName: "Mr. John Okafor",
+      markedAt: "2026-10-01T08:20:00.000Z",
+      notes: "Independence anniversary briefing session.",
+      records: [
+        { studentId: "stu_01", status: "present", remark: "" },
+        { studentId: "stu_02", status: "present", remark: "" },
+        { studentId: "stu_03", status: "present", remark: "" },
+        { studentId: "stu_04", status: "late", remark: "Traffic delay on Lekki-Epe expressway" },
+        { studentId: "stu_05", status: "present", remark: "" }
+      ]
+    },
+    {
+      id: "att_ss2a_2026-09-30",
+      classId: "cls_2026_ss2a",
+      session: "2026/2027",
+      term: "First Term",
+      date: "2026-09-30",
+      markedBy: "tch_john",
+      markedByName: "Mr. John Okafor",
+      markedAt: "2026-09-30T08:12:00.000Z",
+      notes: "End of month register reconciliation.",
+      records: [
+        { studentId: "stu_01", status: "present", remark: "" },
+        { studentId: "stu_02", status: "present", remark: "" },
+        { studentId: "stu_03", status: "present", remark: "" },
+        { studentId: "stu_04", status: "present", remark: "" },
+        { studentId: "stu_05", status: "absent", remark: "Family commitment" }
+      ]
+    },
+    {
+      id: "att_ss2a_2026-09-29",
+      classId: "cls_2026_ss2a",
+      session: "2026/2027",
+      term: "First Term",
+      date: "2026-09-29",
+      markedBy: "tch_john",
+      markedByName: "Mr. John Okafor",
+      markedAt: "2026-09-29T08:14:00.000Z",
+      notes: "Standard morning roll call.",
+      records: [
+        { studentId: "stu_01", status: "present", remark: "" },
+        { studentId: "stu_02", status: "present", remark: "" },
+        { studentId: "stu_03", status: "present", remark: "" },
+        { studentId: "stu_04", status: "present", remark: "" },
+        { studentId: "stu_05", status: "present", remark: "" }
+      ]
+    },
+    {
+      id: "att_ss2a_2026-09-28",
+      classId: "cls_2026_ss2a",
+      session: "2026/2027",
+      term: "First Term",
+      date: "2026-09-28",
+      markedBy: "tch_john",
+      markedByName: "Mr. John Okafor",
+      markedAt: "2026-09-28T08:10:00.000Z",
+      notes: "Week 3 commencement roll call.",
+      records: [
+        { studentId: "stu_01", status: "present", remark: "" },
+        { studentId: "stu_02", status: "present", remark: "" },
+        { studentId: "stu_03", status: "present", remark: "" },
+        { studentId: "stu_04", status: "present", remark: "" },
+        { studentId: "stu_05", status: "present", remark: "" }
+      ]
+    },
 
-  // Standard School Timetable Periods
-  timetablePeriods: [
-    { id: 1, label: "Period 1", time: "08:00 - 08:45", isBreak: false },
-    { id: 2, label: "Period 2", time: "08:45 - 09:30", isBreak: false },
-    { id: "break_1", label: "Morning Break / Assembly", time: "09:30 - 09:50", isBreak: true },
-    { id: 3, label: "Period 3", time: "09:50 - 10:35", isBreak: false },
-    { id: 4, label: "Period 4", time: "10:35 - 11:20", isBreak: false },
-    { id: "break_2", label: "Lunch & Recreation Break", time: "11:20 - 12:10", isBreak: true },
-    { id: 5, label: "Period 5", time: "12:10 - 12:55", isBreak: false },
-    { id: 6, label: "Period 6", time: "12:55 - 01:40", isBreak: false },
-    { id: 7, label: "Period 7", time: "01:40 - 02:25", isBreak: false }
-  ],
+    // JS1A Attendance History (Form Teacher: Mrs. Jane Adebayo - tch_jane)
+    {
+      id: "att_js1a_2026-10-05",
+      classId: "cls_2026_js1a",
+      session: "2026/2027",
+      term: "First Term",
+      date: "2026-10-05",
+      markedBy: "tch_jane",
+      markedByName: "Mrs. Jane Adebayo",
+      markedAt: "2026-10-05T08:12:00.000Z",
+      notes: "All junior students present in uniform.",
+      records: [
+        { studentId: "stu_08", status: "present", remark: "" },
+        { studentId: "stu_09", status: "present", remark: "" }
+      ]
+    },
+    {
+      id: "att_js1a_2026-10-02",
+      classId: "cls_2026_js1a",
+      session: "2026/2027",
+      term: "First Term",
+      date: "2026-10-02",
+      markedBy: "tch_jane",
+      markedByName: "Mrs. Jane Adebayo",
+      markedAt: "2026-10-02T08:15:00.000Z",
+      notes: "Friday attendance completed.",
+      records: [
+        { studentId: "stu_08", status: "present", remark: "" },
+        { studentId: "stu_09", status: "absent", remark: "Dental appointment" }
+      ]
+    },
 
-  timetableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-
-  // Class Timetable Slots
-  timetableSlots: [
-    // SS2A 2026/2027 First Term Timetable
-    { id: "tt_ss2a_m1", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 1, subjectId: "sub_math", teacherId: "tch_john", room: "Room SS2-A", type: "Lecture", notes: "Algebra & Logarithms" },
-    { id: "tt_ss2a_m2", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 2, subjectId: "sub_eng", teacherId: "tch_jane", room: "Room SS2-A", type: "Lecture", notes: "Grammar & Comprehension" },
-    { id: "tt_ss2a_m3", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 3, subjectId: "sub_chem", teacherId: "tch_emmanuel", room: "Science Lab (Physics & Chemistry)", type: "Practical", notes: "Volumetric Analysis" },
-    { id: "tt_ss2a_m4", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 4, subjectId: "sub_phy", teacherId: "tch_david", room: "Science Lab (Physics & Chemistry)", type: "Lecture", notes: "Projectile Motion" },
-    { id: "tt_ss2a_m5", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 5, subjectId: "sub_bio", teacherId: "tch_jane", room: "Biology & Agricultural Lab", type: "Lecture", notes: "Genetics & Heredity" },
-    { id: "tt_ss2a_m6", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 6, subjectId: "sub_econ", teacherId: "tch_tunde", room: "Room SS2-A", type: "Lecture", notes: "Price Elasticity" },
-    { id: "tt_ss2a_m7", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 7, subjectId: "sub_math", teacherId: "tch_john", room: "Room SS2-A", type: "Tutorial", notes: "Tutorial Exercises" },
-
-    { id: "tt_ss2a_t1", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Tuesday", periodNumber: 1, subjectId: "sub_phy", teacherId: "tch_david", room: "Science Lab (Physics & Chemistry)", type: "Practical", notes: "Optics & Lens Lab" },
-    { id: "tt_ss2a_t2", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Tuesday", periodNumber: 2, subjectId: "sub_chem", teacherId: "tch_emmanuel", room: "Room SS2-A", type: "Lecture", notes: "Periodic Trends" },
-    { id: "tt_ss2a_t3", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Tuesday", periodNumber: 3, subjectId: "sub_math", teacherId: "tch_john", room: "Room SS2-A", type: "Lecture", notes: "Quadratic Equations" },
-    { id: "tt_ss2a_t4", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Tuesday", periodNumber: 4, subjectId: "sub_eng", teacherId: "tch_jane", room: "Room SS2-A", type: "Lecture", notes: "Summary Writing" },
-    { id: "tt_ss2a_t5", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Tuesday", periodNumber: 5, subjectId: "sub_econ", teacherId: "tch_tunde", room: "Room SS2-A", type: "Lecture", notes: "Fiscal Policy" },
-    { id: "tt_ss2a_t6", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Tuesday", periodNumber: 6, subjectId: "sub_comp", teacherId: "tch_peter", room: "Computer Science & ICT Suite", type: "Practical", notes: "Python Programming" },
-    { id: "tt_ss2a_t7", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Tuesday", periodNumber: 7, subjectId: "sub_civic", teacherId: "tch_tunde", room: "Room SS2-A", type: "Lecture", notes: "Human Rights & Rule of Law" },
-
-    { id: "tt_ss2a_w1", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Wednesday", periodNumber: 1, subjectId: "sub_bio", teacherId: "tch_jane", room: "Biology & Agricultural Lab", type: "Practical", notes: "Microscope Plant Tissues" },
-    { id: "tt_ss2a_w2", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Wednesday", periodNumber: 2, subjectId: "sub_math", teacherId: "tch_john", room: "Room SS2-A", type: "Lecture", notes: "Simultaneous Equations" },
-    { id: "tt_ss2a_w3", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Wednesday", periodNumber: 3, subjectId: "sub_eng", teacherId: "tch_jane", room: "Room SS2-A", type: "Lecture", notes: "Essay Writing" },
-    { id: "tt_ss2a_w4", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Wednesday", periodNumber: 4, subjectId: "sub_phy", teacherId: "tch_david", room: "Science Lab (Physics & Chemistry)", type: "Lecture", notes: "Thermodynamics" },
-    { id: "tt_ss2a_w5", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Wednesday", periodNumber: 5, subjectId: "sub_chem", teacherId: "tch_emmanuel", room: "Science Lab (Physics & Chemistry)", type: "Lecture", notes: "Chemical Bonding" },
-    { id: "tt_ss2a_w6", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Wednesday", periodNumber: 6, subjectId: "sub_agric", teacherId: "tch_tunde", room: "Biology & Agricultural Lab", type: "Practical", notes: "Soil Science" },
-    { id: "tt_ss2a_w7", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Wednesday", periodNumber: 7, subjectId: "sub_phy", teacherId: "tch_david", room: "Sports Pavilion & Field", type: "Assessment", notes: "Physical Education" },
-
-    { id: "tt_ss2a_th1", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Thursday", periodNumber: 1, subjectId: "sub_math", teacherId: "tch_john", room: "Room SS2-A", type: "Lecture", notes: "Geometry Theorems" },
-    { id: "tt_ss2a_th2", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Thursday", periodNumber: 2, subjectId: "sub_econ", teacherId: "tch_tunde", room: "Room SS2-A", type: "Lecture", notes: "Inflation Dynamics" },
-    { id: "tt_ss2a_th3", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Thursday", periodNumber: 3, subjectId: "sub_eng", teacherId: "tch_jane", room: "Room SS2-A", type: "Lecture", notes: "Oral English & Phonetics" },
-    { id: "tt_ss2a_th4", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Thursday", periodNumber: 4, subjectId: "sub_chem", teacherId: "tch_emmanuel", room: "Science Lab (Physics & Chemistry)", type: "Practical", notes: "Titration Experiment" },
-    { id: "tt_ss2a_th5", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Thursday", periodNumber: 5, subjectId: "sub_phy", teacherId: "tch_david", room: "Room SS2-A", type: "Lecture", notes: "Simple Harmonic Motion" },
-    { id: "tt_ss2a_th6", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Thursday", periodNumber: 6, subjectId: "sub_comp", teacherId: "tch_peter", room: "Computer Science & ICT Suite", type: "Practical", notes: "Web Development" },
-    { id: "tt_ss2a_th7", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Thursday", periodNumber: 7, subjectId: "sub_lit", teacherId: "tch_jane", room: "Multipurpose Assembly Hall", type: "Tutorial", notes: "Literary Drama" },
-
-    { id: "tt_ss2a_f1", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Friday", periodNumber: 1, subjectId: "sub_math", teacherId: "tch_john", room: "Room SS2-A", type: "Lecture", notes: "Statistics & Probabilities" },
-    { id: "tt_ss2a_f2", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Friday", periodNumber: 2, subjectId: "sub_eng", teacherId: "tch_jane", room: "Room SS2-A", type: "Lecture", notes: "Reading Comprehension" },
-    { id: "tt_ss2a_f3", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Friday", periodNumber: 3, subjectId: "sub_bio", teacherId: "tch_jane", room: "Room SS2-A", type: "Lecture", notes: "Ecology" },
-    { id: "tt_ss2a_f4", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Friday", periodNumber: 4, subjectId: "sub_civic", teacherId: "tch_tunde", room: "Room SS2-A", type: "Lecture", notes: "Civic Values" },
-    { id: "tt_ss2a_f5", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Friday", periodNumber: 5, subjectId: "sub_math", teacherId: "tch_john", room: "Room SS2-A", type: "Assessment", notes: "Weekly Assessment Test" },
-    { id: "tt_ss2a_f6", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Friday", periodNumber: 6, subjectId: "sub_eng", teacherId: "tch_jane", room: "Multipurpose Assembly Hall", type: "Tutorial", notes: "Debate & Speech Session" },
-    { id: "tt_ss2a_f7", classId: "cls_2026_ss2a", session: "2026/2027", term: "First Term", day: "Friday", periodNumber: 7, subjectId: "sub_math", teacherId: "tch_john", room: "Room SS2-A", type: "Tutorial", notes: "Class Teacher Review" },
-
-    // SS1A 2026/2027 First Term Timetable (Non-conflicting slots)
-    { id: "tt_ss1a_m1", classId: "cls_2026_ss1a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 1, subjectId: "sub_eng", teacherId: "tch_jane", room: "Room SS1-A", type: "Lecture", notes: "Intro to Senior English" },
-    { id: "tt_ss1a_m2", classId: "cls_2026_ss1a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 2, subjectId: "sub_math", teacherId: "tch_john", room: "Room SS1-A", type: "Lecture", notes: "Indices & Logarithms" },
-    { id: "tt_ss1a_m3", classId: "cls_2026_ss1a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 3, subjectId: "sub_phy", teacherId: "tch_david", room: "Room SS1-A", type: "Lecture", notes: "Scalars & Vectors" },
-    { id: "tt_ss1a_m4", classId: "cls_2026_ss1a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 4, subjectId: "sub_chem", teacherId: "tch_emmanuel", room: "Room SS1-A", type: "Lecture", notes: "Atomic Theory" },
-    { id: "tt_ss1a_m5", classId: "cls_2026_ss1a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 5, subjectId: "sub_econ", teacherId: "tch_tunde", room: "Room SS1-A", type: "Lecture", notes: "Scarcity & Choice" },
-
-    // JS1A 2026/2027 First Term Timetable
-    { id: "tt_js1a_m1", classId: "cls_2026_js1a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 1, subjectId: "sub_bsci", teacherId: "tch_emmanuel", room: "Room JS1-A", type: "Lecture", notes: "Living & Non-living Things" },
-    { id: "tt_js1a_m2", classId: "cls_2026_js1a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 2, subjectId: "sub_btech", teacherId: "tch_david", room: "Room JS1-A", type: "Lecture", notes: "Workshop Safety" },
-    { id: "tt_js1a_m3", classId: "cls_2026_js1a", session: "2026/2027", term: "First Term", day: "Monday", periodNumber: 3, subjectId: "sub_math", teacherId: "tch_john", room: "Room JS1-A", type: "Lecture", notes: "Whole Numbers & Fractions" }
+    // SS1A Attendance History (Form Teacher: Mr. David Adeleke - tch_david)
+    {
+      id: "att_ss1a_2026-10-05",
+      classId: "cls_2026_ss1a",
+      session: "2026/2027",
+      term: "First Term",
+      date: "2026-10-05",
+      markedBy: "tch_david",
+      markedByName: "Mr. David Adeleke",
+      markedAt: "2026-10-05T08:18:00.000Z",
+      notes: "Morning inspection completed.",
+      records: [
+        { studentId: "stu_11", status: "present", remark: "" }
+      ]
+    }
   ],
 
   // Notifications

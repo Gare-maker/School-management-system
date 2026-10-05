@@ -5,9 +5,9 @@
   const store = window.store;
 
   // Global Navigation & UI States
-  let currentView = "admin-dashboard"; // admin-dashboard | admin-classes | admin-class-workspace | admin-students | admin-teachers | admin-questions | admin-results | admin-timetable | admin-settings | teacher-dashboard | teacher-class-workspace | teacher-timetable | teacher-profile
+  let currentView = "admin-dashboard"; // admin-dashboard | admin-classes | admin-class-workspace | admin-students | admin-teachers | admin-questions | admin-results | admin-settings | teacher-dashboard | teacher-class-workspace | teacher-profile
   let activeClassId = "cls_2026_ss2a";
-  let activeClassTab = "students"; // students | teachers-subjects | questions | results | timetable
+  let activeClassTab = "students"; // students | teachers-subjects | attendance | questions | results
   let activeSessionFilter = "2026/2027";
   let activeTermFilter = "First Term";
   let classSearchQuery = "";
@@ -28,12 +28,11 @@
   let resultViewMode = "grid"; // 'grid' (class overview list) | 'detail' (class results workspace)
   let activeResultTab = "students"; // 'students' | 'submissions'
 
-  // Timetable & Schedule Planner States
-  let timetableMode = "class"; // 'class' | 'teacher' | 'master' | 'venues' | 'conflicts'
-  let timetableClassId = "cls_2026_ss2a";
-  let timetableTeacherId = "tch_john";
-  let timetableRoom = "Science Lab (Physics & Chemistry)";
-  let timetableDayFilter = "Monday";
+  // Daily Attendance Register States (Form Teacher Engine)
+  let selectedAttendanceDate = "2026-10-05"; // Default to Today
+  let attendanceCalendarMonth = 9; // 0-indexed: 9 = October
+  let attendanceCalendarYear = 2026;
+  let attendanceCalendarOpen = false;
 
   // Toast Notification Engine
   function showToast(message, type = "success") {
@@ -103,6 +102,7 @@
       // TEACHER PANEL
       const currentTeacher = store.getCurrentTeacher();
       const teacherClasses = store.getTeacherClasses(currentTeacher.id);
+      const formClasses = store.getTeacherFormClasses(currentTeacher.id);
 
       sidebar.innerHTML = `
         <div class="sidebar-header">
@@ -125,10 +125,12 @@
             <span>Dashboard / My Classes</span>
           </div>
 
-          <div class="nav-item ${currentView === 'teacher-timetable' ? 'active' : ''}" data-nav="teacher-timetable">
-            <i data-lucide="calendar-days"></i>
-            <span>My Teaching Timetable</span>
-          </div>
+          ${formClasses.length > 0 ? `
+            <div class="nav-item ${currentView === 'teacher-class-workspace' && activeClassTab === 'attendance' ? 'active' : ''}" data-nav="teacher-form-attendance" data-class-id="${formClasses[0].id}">
+              <i data-lucide="clipboard-check"></i>
+              <span>Daily Attendance (${formClasses.map(c => c.name).join(", ")})</span>
+            </div>
+          ` : ''}
 
           <div class="nav-item ${currentView === 'teacher-profile' ? 'active' : ''}" data-nav="teacher-profile">
             <i data-lucide="user"></i>
@@ -136,12 +138,16 @@
           </div>
 
           <div class="nav-section-title" style="margin-top: 14px;">My Assigned Classes</div>
-          ${teacherClasses.map(c => `
-            <div class="nav-item ${activeClassId === c.id && currentView === 'teacher-class-workspace' ? 'active' : ''}" data-nav="teacher-class-workspace" data-class-id="${c.id}">
-              <i data-lucide="book-open"></i>
-              <span>${c.name} (${c.session})</span>
-            </div>
-          `).join("")}
+          ${teacherClasses.map(c => {
+            const isFormCls = formClasses.some(fc => fc.id === c.id);
+            return `
+              <div class="nav-item ${activeClassId === c.id && currentView === 'teacher-class-workspace' && activeClassTab !== 'attendance' ? 'active' : ''}" data-nav="teacher-class-workspace" data-class-id="${c.id}">
+                <i data-lucide="book-open"></i>
+                <span>${c.name} (${c.session})</span>
+                ${isFormCls ? `<span class="badge badge-success" style="font-size:9px; margin-left:auto; padding:2px 6px;">Form</span>` : ''}
+              </div>
+            `;
+          }).join("")}
         </div>
 
         <div class="sidebar-footer">
@@ -161,7 +167,6 @@
       // ADMIN PANEL
       const school = store.getSchool();
       const questionSets = store.getQuestionSets({ status: "Submitted" });
-      const timetableConflicts = store.getAllTimetableConflicts(activeSessionFilter, activeTermFilter);
 
       sidebar.innerHTML = `
         <div class="sidebar-header">
@@ -197,12 +202,6 @@
           <div class="nav-item ${currentView === 'admin-teachers' ? 'active' : ''}" data-nav="admin-teachers">
             <i data-lucide="user-check"></i>
             <span>Teachers</span>
-          </div>
-
-          <div class="nav-item ${currentView === 'admin-timetable' ? 'active' : ''}" data-nav="admin-timetable">
-            <i data-lucide="calendar-clock"></i>
-            <span>Timetable & Planner</span>
-            ${timetableConflicts.totalConflicts > 0 ? `<span class="badge-pill-danger" style="margin-left:auto; font-size:10px; font-weight:700;">${timetableConflicts.totalConflicts} Conflict${timetableConflicts.totalConflicts > 1 ? 's' : ''}</span>` : ''}
           </div>
 
           <div class="nav-item ${currentView === 'admin-questions' ? 'active' : ''}" data-nav="admin-questions">
@@ -245,6 +244,11 @@
         if (targetView === "admin-results") {
           resultViewMode = "grid"; // Reset to class list when navigating to Result Management
         }
+        if (targetView === "teacher-form-attendance") {
+          activeClassTab = "attendance";
+          navigate("teacher-class-workspace", { classId: cId, tab: "attendance" });
+          return;
+        }
         navigate(targetView, { classId: cId });
       });
     });
@@ -280,8 +284,6 @@
     }
     if (currentView.includes("students")) viewTitle = "Students Registry";
     if (currentView.includes("teachers")) viewTitle = "Teachers & Staff Directory";
-    if (currentView === "admin-timetable") viewTitle = "Timetable & Schedule Planner";
-    if (currentView === "teacher-timetable") viewTitle = "Teacher Class Timetable";
     if (currentView.includes("questions")) viewTitle = "Exam Questions & Question Bank";
     if (currentView.includes("results")) viewTitle = "Result Management & Broadsheets";
     if (currentView.includes("settings")) viewTitle = "School Settings & Audit Log";
@@ -393,9 +395,6 @@
         case "teacher-class-workspace":
           renderClassWorkspace(container, false);
           break;
-        case "teacher-timetable":
-          renderTeacherTimetable(container);
-          break;
         case "teacher-profile":
           renderTeacherProfile(container);
           break;
@@ -418,9 +417,6 @@
           break;
         case "admin-teachers":
           renderAdminTeachers(container);
-          break;
-        case "admin-timetable":
-          renderAdminTimetable(container);
           break;
         case "admin-questions":
           renderAdminQuestions(container);
@@ -896,8 +892,8 @@
             <i data-lucide="book-open"></i> Teachers & Subjects (${subjects.length})
           </button>
         ` : ''}
-        <button class="workspace-tab-btn ${activeClassTab === 'timetable' ? 'active' : ''}" data-tab="timetable">
-          <i data-lucide="calendar-clock"></i> Timetable / Schedule
+        <button class="workspace-tab-btn ${activeClassTab === 'attendance' ? 'active' : ''}" data-tab="attendance">
+          <i data-lucide="clipboard-check"></i> Daily Attendance Register
         </button>
         <button class="workspace-tab-btn ${activeClassTab === 'questions' ? 'active' : ''}" data-tab="questions">
           <i data-lucide="help-circle"></i> Exam Questions (${questionSets.length})
@@ -943,8 +939,8 @@
       renderClassStudentsTab(tabContainer, currentClass, isAdmin);
     } else if (activeClassTab === "teachers-subjects") {
       renderClassTeachersSubjectsTab(tabContainer, currentClass, isAdmin);
-    } else if (activeClassTab === "timetable") {
-      renderClassTimetableTab(tabContainer, currentClass, isAdmin);
+    } else if (activeClassTab === "attendance") {
+      renderClassAttendanceTab(tabContainer, currentClass, isAdmin);
     } else if (activeClassTab === "questions") {
       renderClassQuestionsTab(tabContainer, currentClass, isAdmin);
     } else if (activeClassTab === "results") {
@@ -1119,19 +1115,42 @@
   function renderClassTeachersSubjectsTab(tabContainer, currentClass, isAdmin) {
     const subjects = store.getClassSubjects(currentClass.id);
     const teachers = store.getClassTeachers(currentClass.id);
+    const formTeacher = store.getClassFormTeacher(currentClass.id);
 
     tabContainer.innerHTML = `
       <div class="view-header" style="margin-bottom: 16px;">
         <div class="view-title-group">
-          <h2 style="font-size: 18px; font-weight: 700; color: var(--text-heading);">Subjects & Assigned Teachers for ${currentClass.name}</h2>
-          <p>Curriculum subjects and educator assignments for <strong>${currentClass.session}</strong></p>
+          <h2 style="font-size: 18px; font-weight: 700; color: var(--text-heading);">Subjects & Assigned Faculty for ${currentClass.name}</h2>
+          <p>Curriculum subjects, Form Teacher, and Subject Teacher allocations for <strong>${currentClass.session}</strong></p>
         </div>
         <div class="view-actions">
           ${isAdmin ? `
+            <button class="btn btn-secondary btn-sm" onclick="window.appHandlers.openAssignFormTeacherModal('${currentClass.id}')"><i data-lucide="award"></i> ${formTeacher ? 'Change Form Teacher' : 'Assign Form Teacher'}</button>
             <button class="btn btn-primary btn-sm" onclick="window.appHandlers.openAddSubjectToClassModal('${currentClass.id}')"><i data-lucide="plus"></i> Add Subject to Class</button>
-            <button class="btn btn-secondary btn-sm" onclick="window.appHandlers.openAssignTeacherModal('')"><i data-lucide="user-plus"></i> Assign Teacher</button>
+            <button class="btn btn-secondary btn-sm" onclick="window.appHandlers.openAssignTeacherModal('')"><i data-lucide="user-plus"></i> Assign Subject Teacher</button>
           ` : ''}
         </div>
+      </div>
+
+      <!-- Designated Form Teacher Banner -->
+      <div class="form-teacher-banner" style="margin-bottom: 20px;">
+        <div class="form-teacher-avatar-box">
+          <img src="${formTeacher?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&h=120'}" alt="${formTeacher?.name || 'Form Teacher'}" />
+        </div>
+        <div class="form-teacher-info-box">
+          <div class="form-teacher-eyebrow"><i data-lucide="award" style="width:12px; height:12px;"></i> CLASS FORM TEACHER (PASTORAL & ATTENDANCE)</div>
+          <div class="form-teacher-name">${formTeacher ? formTeacher.name : '<span style="color:#94a3b8; font-style:italic;">No Form Teacher Assigned Yet</span>'}</div>
+          <div class="form-teacher-meta">
+            ${formTeacher ? `${formTeacher.specialization} • <code>${formTeacher.teacherId}</code> • Responsible for Daily Roll Call & Register` : 'A Form Teacher is responsible for taking daily class attendance and pastoral care.'}
+          </div>
+        </div>
+        ${isAdmin ? `
+          <div class="form-teacher-action-box">
+            <button class="btn btn-secondary btn-sm" onclick="window.appHandlers.openAssignFormTeacherModal('${currentClass.id}')">
+              <i data-lucide="user-check"></i> ${formTeacher ? 'Change Form Teacher' : 'Designate Form Teacher'}
+            </button>
+          </div>
+        ` : ''}
       </div>
 
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
@@ -1171,42 +1190,49 @@
         <!-- Teachers Column -->
         <div class="table-card">
           <div style="padding:16px 20px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
-            <h3 style="font-size:15px; font-weight:700; color:var(--text-heading);">Assigned Teachers (${teachers.length})</h3>
+            <h3 style="font-size:15px; font-weight:700; color:var(--text-heading);">Assigned Teachers & Staff (${teachers.length})</h3>
           </div>
           <div class="table-responsive">
             <table class="data-table">
               <thead>
                 <tr>
                   <th>Teacher</th>
+                  <th>Designation / Role</th>
                   <th>Subjects Taught</th>
                   ${isAdmin ? `<th style="text-align:right;">Action</th>` : ''}
                 </tr>
               </thead>
               <tbody>
-                ${teachers.length > 0 ? teachers.map(t => `
-                  <tr>
-                    <td>
-                      <div style="display:flex; align-items:center; gap:8px;">
-                        <img src="${t.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=80&h=80'}" style="width:28px; height:28px; border-radius:50%;" />
-                        <div>
-                          <strong>${t.name}</strong>
-                          <div style="font-size:11px; color:var(--text-muted);">${t.specialization}</div>
+                ${teachers.length > 0 ? teachers.map(t => {
+                  const isClassForm = formTeacher && formTeacher.id === t.id;
+                  return `
+                    <tr>
+                      <td>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                          <img src="${t.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=80&h=80'}" style="width:28px; height:28px; border-radius:50%;" />
+                          <div>
+                            <strong>${t.name}</strong>
+                            <div style="font-size:11px; color:var(--text-muted);">${t.specialization}</div>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div style="display:flex; flex-wrap:wrap; gap:4px;">
-                        ${(t.assignedSubjects || []).map(sub => `<span class="badge badge-primary" style="font-size:11px;">${sub.name}</span>`).join("")}
-                      </div>
-                    </td>
-                    ${isAdmin ? `
-                      <td style="text-align:right;">
-                        <button class="btn btn-secondary btn-sm" onclick="window.appHandlers.openAssignTeacherModal('${t.id}')"><i data-lucide="edit"></i> Manage</button>
                       </td>
-                    ` : ''}
-                  </tr>
-                `).join("") : `
-                  <tr><td colspan="${isAdmin ? 3 : 2}" style="text-align:center; padding:20px; color:var(--text-muted);">No teachers assigned to this class yet.</td></tr>
+                      <td>
+                        ${isClassForm ? `<span class="badge badge-success" style="font-size:10px;"><i data-lucide="award" style="width:10px; height:10px;"></i> Form Teacher</span>` : `<span class="badge badge-neutral" style="font-size:10px;">Subject Teacher</span>`}
+                      </td>
+                      <td>
+                        <div style="display:flex; flex-wrap:wrap; gap:4px;">
+                          ${(t.assignedSubjects || []).map(sub => `<span class="badge badge-primary" style="font-size:11px;">${sub.name}</span>`).join("")}
+                        </div>
+                      </td>
+                      ${isAdmin ? `
+                        <td style="text-align:right;">
+                          <button class="btn btn-secondary btn-sm" onclick="window.appHandlers.openAssignTeacherModal('${t.id}')"><i data-lucide="edit"></i> Manage</button>
+                        </td>
+                      ` : ''}
+                    </tr>
+                  `;
+                }).join("") : `
+                  <tr><td colspan="${isAdmin ? 4 : 3}" style="text-align:center; padding:20px; color:var(--text-muted);">No teachers assigned to this class yet.</td></tr>
                 `}
               </tbody>
             </table>
@@ -1577,6 +1603,7 @@
             <tbody>
               ${filteredTeachers.map(t => {
                 const assignments = store.getTeacherAssignments(t.id);
+                const formClasses = store.getTeacherFormClasses(t.id);
                 return `
                   <tr>
                     <td>
@@ -1595,11 +1622,16 @@
                     </td>
                     <td>
                       <div style="display:flex; flex-wrap:wrap; gap:4px; max-width:280px;">
+                        ${formClasses.map(fc => `
+                          <span class="badge badge-success" style="display:inline-flex; align-items:center; gap:3px;" title="Form Teacher for ${fc.name}">
+                            <i data-lucide="award" style="width:10px; height:10px;"></i> Form: ${fc.name}
+                          </span>
+                        `).join("")}
                         ${assignments.length > 0 ? assignments.map(a => {
                           const cls = store.getClassById(a.classId);
                           const sub = store.getSubjectById(a.subjectId);
                           return `<span class="badge badge-primary">${cls?.name || 'Class'}: ${sub?.name || 'Sub'}</span>`;
-                        }).join("") : `<span style="font-size:11.5px; color:var(--text-subtle);">No classes assigned</span>`}
+                        }).join("") : (formClasses.length === 0 ? `<span style="font-size:11.5px; color:var(--text-subtle);">No classes assigned</span>` : '')}
                       </div>
                     </td>
                     <td>${t.phone}</td>
@@ -2286,698 +2318,571 @@
   // ==========================================================================
   // TIMETABLE & CLASS SCHEDULE PLANNER WITH CONFLICT DETECTION
   // ==========================================================================
-  function renderAdminTimetable(container) {
-    const availableSessions = store.getAvailableSessions();
-    const availableTerms = store.getAvailableTerms();
-    const classes = store.getClasses(activeSessionFilter);
-    const teachers = store.getAvailableTeachers();
-    const venues = store.getVenues();
-    const periods = store.getTimetablePeriods();
-    const days = store.getTimetableDays();
+  // ==========================================================================
+  // DAILY ATTENDANCE REGISTER ENGINE (Form Teacher Roll Call & Admin Audit)
+  // ==========================================================================
+  function renderClassAttendanceTab(tabContainer, currentClass, isAdmin) {
+    if (!tabContainer || !currentClass) return;
 
-    if (classes.length > 0 && !classes.some(c => c.id === timetableClassId)) {
-      timetableClassId = classes[0].id;
+    const currentSession = currentClass.session || store.getCurrentSession();
+    const currentTerm = store.getSchool().currentTerm || "First Term";
+    const classStudents = store.getClassStudents(currentClass.id);
+    const formTeacher = store.getClassFormTeacher(currentClass.id);
+    const currentTeacher = store.getCurrentTeacher();
+    const isFormTeacher = !isAdmin && formTeacher && formTeacher.id === currentTeacher.id;
+
+    // Fetch existing attendance record for selected date
+    const existingRecord = store.getAttendanceRecord(currentClass.id, selectedAttendanceDate);
+    const markedDates = store.getAttendanceDatesForMonth(currentClass.id, attendanceCalendarYear, attendanceCalendarMonth);
+
+    // Calculate stats
+    const totalStudents = classStudents.length;
+    let presentCount = 0;
+    let absentCount = 0;
+    let lateCount = 0;
+    let excusedCount = 0;
+
+    if (existingRecord && existingRecord.records) {
+      existingRecord.records.forEach(r => {
+        if (r.status === "Present") presentCount++;
+        else if (r.status === "Absent") absentCount++;
+        else if (r.status === "Late") lateCount++;
+        else if (r.status === "Excused") excusedCount++;
+      });
     }
 
-    const currentClass = store.getClassById(timetableClassId) || classes[0];
-    const conflictsReport = store.getAllTimetableConflicts(activeSessionFilter, activeTermFilter);
+    const presentPercent = totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 0;
+    const absentPercent = totalStudents > 0 ? Math.round((absentCount / totalStudents) * 100) : 0;
 
-    container.innerHTML = `
-      <div class="view-header">
+    // Date formatting helper
+    const dateObj = new Date(selectedAttendanceDate + "T00:00:00");
+    const formattedDateHeader = dateObj.toLocaleDateString("en-GB", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
+
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+    tabContainer.innerHTML = `
+      <div class="view-header" style="margin-bottom: 16px; align-items: flex-start;">
         <div class="view-title-group">
-          <div class="view-eyebrow">ACADEMIC SCHEDULER & LOGISTICS</div>
-          <h1>Timetable & Schedule Planner</h1>
-          <p>Interactive Period Matrix with Real-Time Conflict Detection • <strong>${activeSessionFilter}</strong> • <strong>${activeTermFilter}</strong></p>
+          <div class="view-eyebrow">DAILY ROLL CALL & ATTENDANCE REGISTER</div>
+          <h2 style="font-size: 20px; font-weight: 700; color: var(--text-heading); margin-top: 2px;">
+            ${currentClass.name} Daily Attendance Register
+          </h2>
+          <p>Academic Session: <strong>${currentSession}</strong> • Term: <strong>${currentTerm}</strong></p>
         </div>
-        <div class="view-actions">
-          <select class="form-select" id="tt-session-select" style="width: 140px;" title="Academic Session">
-            ${availableSessions.map(s => `<option value="${s}" ${s === activeSessionFilter ? 'selected' : ''}>${s}</option>`).join("")}
-          </select>
-          <select class="form-select" id="tt-term-select" style="width: 140px;" title="Academic Term">
-            ${availableTerms.map(t => `<option value="${t}" ${t === activeTermFilter ? 'selected' : ''}>${t}</option>`).join("")}
-          </select>
-          <button class="btn btn-primary" id="tt-btn-add-slot"><i data-lucide="plus-circle"></i> Add Period Slot</button>
+
+        <div class="view-actions" style="position: relative;">
+          <!-- Interactive Date Selector with Calendar Dropdown -->
+          <div class="attendance-date-selector-wrapper" style="position: relative;">
+            <button class="attendance-date-btn" id="btn-toggle-attendance-cal" title="Click to choose attendance date">
+              <i data-lucide="calendar"></i>
+              <span>${formattedDateHeader}</span>
+              <i data-lucide="chevron-down" style="width: 14px; height: 14px;"></i>
+            </button>
+
+            <!-- Calendar Popup Dropdown with Marked Day Dots -->
+            <div class="calendar-dropdown-popup ${attendanceCalendarOpen ? 'active' : ''}" id="attendance-calendar-popup">
+              <div class="calendar-dropdown-header">
+                <button class="cal-nav-btn" id="cal-prev-month"><i data-lucide="chevron-left"></i></button>
+                <div class="cal-month-title">${monthNames[attendanceCalendarMonth]} ${attendanceCalendarYear}</div>
+                <button class="cal-nav-btn" id="cal-next-month"><i data-lucide="chevron-right"></i></button>
+              </div>
+              <div class="calendar-day-headers">
+                <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+              </div>
+              <div class="calendar-days-grid" id="cal-days-grid-container">
+                <!-- Rendered dynamically -->
+              </div>
+              <div class="calendar-dropdown-footer">
+                <div class="cal-legend-item"><span class="cal-dot"></span> Marked Register</div>
+                <button class="cal-today-btn" id="cal-btn-go-today">Go to Today</button>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn btn-secondary btn-sm" id="btn-print-attendance-register" title="Print Attendance Register">
+            <i data-lucide="printer"></i> Print Register
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btn-export-attendance-csv" title="Export Attendance CSV">
+            <i data-lucide="download"></i> Export CSV
+          </button>
         </div>
       </div>
 
-      <div class="timetable-hub-container">
-        <!-- Live Conflict Alert Banner -->
-        ${conflictsReport.totalConflicts > 0 ? `
-          <div class="conflict-alert-banner">
-            <div class="conflict-alert-left">
-              <div class="conflict-alert-icon">
-                <i data-lucide="alert-triangle"></i>
-              </div>
-              <div class="conflict-alert-text">
-                <h4>${conflictsReport.totalConflicts} Schedule Collision${conflictsReport.totalConflicts > 1 ? 's' : ''} Detected!</h4>
-                <p>Teacher double-bookings or venue collisions found for ${activeSessionFilter} (${activeTermFilter}). Click below to resolve.</p>
-              </div>
+      <!-- 4-Card Statistics Grid -->
+      <div class="attendance-stats-grid">
+        <div class="attendance-stat-card">
+          <div class="attendance-stat-icon total"><i data-lucide="users"></i></div>
+          <div class="attendance-stat-info">
+            <h4>Total Class Enrollment</h4>
+            <div class="attendance-stat-value">${totalStudents}</div>
+            <div class="attendance-stat-subtext">Registered Students</div>
+          </div>
+        </div>
+
+        <div class="attendance-stat-card">
+          <div class="attendance-stat-icon present"><i data-lucide="user-check"></i></div>
+          <div class="attendance-stat-info">
+            <h4>Present Today</h4>
+            <div class="attendance-stat-value" style="color: #059669;">${presentCount} <span style="font-size:13px; font-weight:600; color:#64748b;">(${presentPercent}%)</span></div>
+            <div class="attendance-stat-subtext">Marked in class</div>
+          </div>
+        </div>
+
+        <div class="attendance-stat-card">
+          <div class="attendance-stat-icon absent"><i data-lucide="user-x"></i></div>
+          <div class="attendance-stat-info">
+            <h4>Absent Today</h4>
+            <div class="attendance-stat-value" style="color: #dc2626;">${absentCount} <span style="font-size:13px; font-weight:600; color:#64748b;">(${absentPercent}%)</span></div>
+            <div class="attendance-stat-subtext">${lateCount} Late • ${excusedCount} Excused</div>
+          </div>
+        </div>
+
+        <div class="attendance-stat-card">
+          <div class="attendance-stat-icon status"><i data-lucide="clipboard-check"></i></div>
+          <div class="attendance-stat-info">
+            <h4>Register Status</h4>
+            <div class="attendance-stat-value" style="font-size: 15px; margin-top: 4px;">
+              ${existingRecord ? `<span class="badge badge-success" style="font-size:12px; padding:4px 8px;"><i data-lucide="check-circle-2" style="width:12px; height:12px;"></i> Marked</span>` : `<span class="badge badge-warning" style="font-size:12px; padding:4px 8px;"><i data-lucide="clock" style="width:12px; height:12px;"></i> Pending</span>`}
             </div>
-            <button class="btn btn-sm btn-outline-danger" id="tt-banner-review-conflicts" style="background:#fff; font-weight:700;">
-              <i data-lucide="shield-alert"></i> Review Collisions (${conflictsReport.totalConflicts})
+            <div class="attendance-stat-subtext">
+              ${existingRecord ? `By ${existingRecord.markedByName || 'Form Teacher'} (${existingRecord.markedAt || '08:15 AM'})` : 'Roll call pending submission'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Teacher Responsibility Banner -->
+      <div class="form-teacher-banner" style="margin-bottom: 20px;">
+        <div class="form-teacher-avatar-box">
+          <img src="${formTeacher?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&h=120'}" alt="${formTeacher?.name || 'Form Teacher'}" />
+        </div>
+        <div class="form-teacher-info-box">
+          <div class="form-teacher-eyebrow"><i data-lucide="award" style="width:12px; height:12px;"></i> DESIGNATED FORM TEACHER (PASTORAL MASTER)</div>
+          <div class="form-teacher-name">${formTeacher ? formTeacher.name : '<span style="color:#94a3b8; font-style:italic;">No Form Teacher Assigned Yet</span>'}</div>
+          <div class="form-teacher-meta">
+            ${isFormTeacher 
+              ? `You are the assigned Form Teacher for <strong>${currentClass.name}</strong>. You have roll call marking authority for daily attendance.`
+              : isAdmin 
+                ? `Administrator Auditing Mode: Reviewing attendance records taken by the designated Form Teacher (<strong>${formTeacher?.name || 'Unassigned'}</strong>).`
+                : `Subject Teacher Mode: Daily attendance roll call is taken by the Form Teacher (<strong>${formTeacher?.name || 'Unassigned'}</strong>).`
+            }
+          </div>
+        </div>
+        ${isAdmin ? `
+          <div class="form-teacher-action-box">
+            <button class="btn btn-secondary btn-sm" onclick="window.appHandlers.openAssignFormTeacherModal('${currentClass.id}')">
+              <i data-lucide="user-check"></i> ${formTeacher ? 'Change Form Teacher' : 'Assign Form Teacher'}
             </button>
           </div>
         ` : ''}
-
-        <!-- Timetable Toolbar & View Mode Switcher -->
-        <div class="timetable-toolbar">
-          <div class="timetable-mode-tabs">
-            <button class="timetable-mode-btn ${timetableMode === 'class' ? 'active' : ''}" data-mode="class">
-              <i data-lucide="layout-grid"></i> Class Schedule
-            </button>
-            <button class="timetable-mode-btn ${timetableMode === 'teacher' ? 'active' : ''}" data-mode="teacher">
-              <i data-lucide="user-check"></i> Teacher Schedule
-            </button>
-            <button class="timetable-mode-btn ${timetableMode === 'master' ? 'active' : ''}" data-mode="master">
-              <i data-lucide="table"></i> Master Matrix
-            </button>
-            <button class="timetable-mode-btn ${timetableMode === 'venues' ? 'active' : ''}" data-mode="venues">
-              <i data-lucide="building"></i> Venue / Lab Occupancy
-            </button>
-            <button class="timetable-mode-btn ${timetableMode === 'conflicts' ? 'active' : ''}" data-mode="conflicts">
-              <i data-lucide="alert-octagon"></i> Conflict Scanner
-              ${conflictsReport.totalConflicts > 0 ? `<span class="badge-pill-danger">${conflictsReport.totalConflicts}</span>` : ''}
-            </button>
-          </div>
-
-          <!-- Mode Specific Selectors & Quick Actions -->
-          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-            ${timetableMode === 'class' ? `
-              <select class="form-select" id="tt-class-picker" style="width:160px; font-weight:600;">
-                ${classes.map(c => `<option value="${c.id}" ${c.id === currentClass?.id ? 'selected' : ''}>${c.name} (${c.session})</option>`).join("")}
-              </select>
-              <button class="btn btn-secondary btn-sm" id="tt-btn-auto-gen" title="Smart Balance Schedule without Conflicts"><i data-lucide="sparkles"></i> Auto-Generate</button>
-              <button class="btn btn-secondary btn-sm" id="tt-btn-copy-class" title="Copy Schedule from another class"><i data-lucide="copy"></i> Copy</button>
-              <button class="btn btn-secondary btn-sm" id="tt-btn-print" title="Print Class Timetable"><i data-lucide="printer"></i> Print</button>
-              <button class="btn btn-secondary btn-sm" id="tt-btn-export-csv" title="Export CSV"><i data-lucide="download"></i> CSV</button>
-              <button class="btn btn-outline-danger btn-sm" id="tt-btn-clear-class" title="Clear Class Schedule"><i data-lucide="trash-2"></i> Clear</button>
-            ` : ''}
-
-            ${timetableMode === 'teacher' ? `
-              <select class="form-select" id="tt-teacher-picker" style="width:200px; font-weight:600;">
-                ${teachers.map(t => `<option value="${t.id}" ${t.id === timetableTeacherId ? 'selected' : ''}>${t.name} (${t.specialization.split('&')[0]})</option>`).join("")}
-              </select>
-              <button class="btn btn-secondary btn-sm" id="tt-btn-print-teacher"><i data-lucide="printer"></i> Print Schedule</button>
-            ` : ''}
-
-            ${timetableMode === 'master' ? `
-              <select class="form-select" id="tt-day-picker" style="width:140px; font-weight:600;">
-                ${days.map(d => `<option value="${d}" ${d === timetableDayFilter ? 'selected' : ''}>${d}</option>`).join("")}
-              </select>
-              <button class="btn btn-secondary btn-sm" id="tt-btn-print-master"><i data-lucide="printer"></i> Print Master</button>
-            ` : ''}
-
-            ${timetableMode === 'venues' ? `
-              <select class="form-select" id="tt-room-picker" style="width:240px; font-weight:600;">
-                ${venues.map(v => `<option value="${v.name}" ${v.name === timetableRoom ? 'selected' : ''}>${v.name} (${v.type})</option>`).join("")}
-              </select>
-            ` : ''}
-          </div>
-        </div>
-
-        <!-- Timetable Active View Mount -->
-        <div id="tt-active-view-mount"></div>
-      </div>
-    `;
-
-    // Event Listeners for Toolbar
-    document.getElementById("tt-session-select")?.addEventListener("change", (e) => {
-      activeSessionFilter = e.target.value;
-      renderAdminTimetable(container);
-      if (window.lucide) window.lucide.createIcons();
-    });
-
-    document.getElementById("tt-term-select")?.addEventListener("change", (e) => {
-      activeTermFilter = e.target.value;
-      renderAdminTimetable(container);
-      if (window.lucide) window.lucide.createIcons();
-    });
-
-    document.getElementById("tt-btn-add-slot")?.addEventListener("click", () => {
-      openTimetableSlotModal(null, currentClass?.id);
-    });
-
-    document.getElementById("tt-banner-review-conflicts")?.addEventListener("click", () => {
-      timetableMode = "conflicts";
-      renderAdminTimetable(container);
-      if (window.lucide) window.lucide.createIcons();
-    });
-
-    container.querySelectorAll(".timetable-mode-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        timetableMode = btn.getAttribute("data-mode");
-        renderAdminTimetable(container);
-        if (window.lucide) window.lucide.createIcons();
-      });
-    });
-
-    // Class Mode Handlers
-    document.getElementById("tt-class-picker")?.addEventListener("change", (e) => {
-      timetableClassId = e.target.value;
-      renderTimetableClassGrid(document.getElementById("tt-active-view-mount"), store.getClassById(timetableClassId));
-      if (window.lucide) window.lucide.createIcons();
-    });
-
-    document.getElementById("tt-btn-auto-gen")?.addEventListener("click", () => {
-      if (!currentClass) return;
-      if (confirm(`Auto-generate a balanced, conflict-free weekly timetable for ${currentClass.name}? Any existing slots will be replaced.`)) {
-        try {
-          store.autoGenerateClassTimetable(currentClass.id, activeSessionFilter, activeTermFilter, true);
-          showToast(`Generated conflict-free timetable for ${currentClass.name}!`, "success");
-          renderAdminTimetable(container);
-          if (window.lucide) window.lucide.createIcons();
-        } catch (err) {
-          showToast(err.message, "error");
-        }
-      }
-    });
-
-    document.getElementById("tt-btn-copy-class")?.addEventListener("click", () => {
-      if (!currentClass) return;
-      openCopyTimetableModal(currentClass.id);
-    });
-
-    document.getElementById("tt-btn-print")?.addEventListener("click", () => {
-      if (!currentClass) return;
-      const slots = store.getTimetableSlots({ classId: currentClass.id, session: activeSessionFilter, term: activeTermFilter });
-      window.exportUtils.printTimetable(currentClass, slots, periods, days, store.getSchool(), activeSessionFilter, activeTermFilter);
-    });
-
-    document.getElementById("tt-btn-export-csv")?.addEventListener("click", () => {
-      if (!currentClass) return;
-      const slots = store.getTimetableSlots({ classId: currentClass.id, session: activeSessionFilter, term: activeTermFilter });
-      window.exportUtils.downloadTimetableCSV(currentClass, slots, periods, days, activeSessionFilter, activeTermFilter);
-      showToast(`Exported ${currentClass.name} Timetable CSV.`, "success");
-    });
-
-    document.getElementById("tt-btn-clear-class")?.addEventListener("click", () => {
-      if (!currentClass) return;
-      if (confirm(`Are you sure you want to clear all periods for ${currentClass.name} (${activeSessionFilter} ${activeTermFilter})?`)) {
-        store.clearClassTimetable(currentClass.id, activeSessionFilter, activeTermFilter);
-        showToast(`Cleared timetable for ${currentClass.name}.`, "info");
-        renderAdminTimetable(container);
-        if (window.lucide) window.lucide.createIcons();
-      }
-    });
-
-    // Teacher Mode Handlers
-    document.getElementById("tt-teacher-picker")?.addEventListener("change", (e) => {
-      timetableTeacherId = e.target.value;
-      renderTimetableTeacherGrid(document.getElementById("tt-active-view-mount"), timetableTeacherId);
-      if (window.lucide) window.lucide.createIcons();
-    });
-
-    document.getElementById("tt-btn-print-teacher")?.addEventListener("click", () => {
-      const teacher = store.getTeacherById(timetableTeacherId);
-      const slots = store.getTimetableSlots({ teacherId: timetableTeacherId, session: activeSessionFilter, term: activeTermFilter });
-      window.exportUtils.printTimetable({ name: `Teacher: ${teacher?.name}` }, slots, periods, days, store.getSchool(), activeSessionFilter, activeTermFilter);
-    });
-
-    // Master Mode Handlers
-    document.getElementById("tt-day-picker")?.addEventListener("change", (e) => {
-      timetableDayFilter = e.target.value;
-      renderTimetableMasterGrid(document.getElementById("tt-active-view-mount"), timetableDayFilter);
-      if (window.lucide) window.lucide.createIcons();
-    });
-
-    document.getElementById("tt-btn-print-master")?.addEventListener("click", () => {
-      window.print();
-    });
-
-    // Venues Mode Handlers
-    document.getElementById("tt-room-picker")?.addEventListener("change", (e) => {
-      timetableRoom = e.target.value;
-      renderTimetableVenueGrid(document.getElementById("tt-active-view-mount"), timetableRoom);
-      if (window.lucide) window.lucide.createIcons();
-    });
-
-    // Render Sub-view
-    const viewMount = document.getElementById("tt-active-view-mount");
-    if (timetableMode === "class") {
-      renderTimetableClassGrid(viewMount, currentClass);
-    } else if (timetableMode === "teacher") {
-      renderTimetableTeacherGrid(viewMount, timetableTeacherId);
-    } else if (timetableMode === "master") {
-      renderTimetableMasterGrid(viewMount, timetableDayFilter);
-    } else if (timetableMode === "venues") {
-      renderTimetableVenueGrid(viewMount, timetableRoom);
-    } else if (timetableMode === "conflicts") {
-      renderTimetableConflictsView(viewMount, conflictsReport);
-    }
-  }
-
-  // 1. CLASS TIMETABLE GRID
-  function renderTimetableClassGrid(container, classObj) {
-    if (!container) return;
-    if (!classObj) {
-      container.innerHTML = `<div style="padding:40px; text-align:center; color:var(--text-muted);">No classes available.</div>`;
-      return;
-    }
-
-    const periods = store.getTimetablePeriods();
-    const days = store.getTimetableDays();
-    const slots = store.getTimetableSlots({ classId: classObj.id, session: activeSessionFilter, term: activeTermFilter });
-    const activePeriods = periods.filter(p => !p.isBreak);
-
-    container.innerHTML = `
-      <div class="timetable-grid-card">
-        <div class="table-responsive">
-          <table class="timetable-grid-table">
-            <thead>
-              <tr>
-                <th class="timetable-day-col" style="text-align:center;">DAY</th>
-                ${periods.map(p => {
-                  if (p.isBreak) {
-                    return `<th style="width:65px; background:#f1f5f9; color:#64748b; font-size:10.5px; padding:6px 2px;">${p.label.split('/')[0]}</th>`;
-                  }
-                  return `
-                    <th class="timetable-period-th">
-                      <div class="period-name">${p.label}</div>
-                      <div class="period-time">${p.time}</div>
-                    </th>
-                  `;
-                }).join("")}
-              </tr>
-            </thead>
-            <tbody>
-              ${days.map(day => `
-                <tr>
-                  <td class="timetable-day-col">${day.toUpperCase()}</td>
-                  ${periods.map(p => {
-                    if (p.isBreak) {
-                      return `<td class="timetable-break-cell"><span style="font-size:10px; text-transform:uppercase; writing-mode:vertical-rl; transform:rotate(180deg); color:#94a3b8; font-weight:700;">Break</span></td>`;
-                    }
-
-                    const slot = slots.find(s => s.day === day && Number(s.periodNumber) === Number(p.id));
-                    if (!slot) {
-                      return `
-                        <td class="timetable-slot-cell">
-                          <button class="slot-empty-btn" onclick="window.appHandlers.openTimetableSlotModal(null, '${classObj.id}', '${day}', ${p.id})">
-                            <i data-lucide="plus" style="width:14px; height:14px;"></i>
-                            <span>Add</span>
-                          </button>
-                        </td>
-                      `;
-                    }
-
-                    const sub = store.getSubjectById(slot.subjectId);
-                    const tch = store.getTeacherById(slot.teacherId);
-                    const slotConflicts = store.detectTimetableConflicts(slot, slot.id);
-                    const hasConflict = slotConflicts.length > 0;
-                    const typeClass = (slot.type || "lecture").toLowerCase().replace(/[^a-z]/g, "");
-
-                    return `
-                      <td class="timetable-slot-cell">
-                        <div class="slot-card ${hasConflict ? 'has-conflict' : ''}" onclick="window.appHandlers.openTimetableSlotModal('${slot.id}', '${classObj.id}')">
-                          <div class="slot-card-header">
-                            <div class="slot-subject-title">${sub?.name || 'Subject'}</div>
-                            <span class="slot-badge-type ${typeClass}">${slot.type || 'Lecture'}</span>
-                          </div>
-
-                          <div class="slot-teacher-info">
-                            <img src="${tch?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&fit=crop'}" class="slot-teacher-avatar" alt="${tch?.name}" />
-                            <span>${tch?.name || 'Teacher'}</span>
-                          </div>
-
-                          <div style="display:flex; align-items:center; justify-content:space-between; gap:4px; margin-top:2px;">
-                            <span class="slot-room-badge" title="Venue"><i data-lucide="map-pin" style="width:10px; height:10px;"></i> ${slot.room || 'Classroom'}</span>
-                            ${hasConflict ? `
-                              <span class="slot-conflict-indicator" title="${slotConflicts[0].message}">
-                                <i data-lucide="alert-triangle" style="width:10px; height:10px;"></i> Clash
-                              </span>
-                            ` : ''}
-                          </div>
-
-                          <div class="slot-hover-actions" onclick="event.stopPropagation()">
-                            <button class="slot-hover-btn" title="Edit Period" onclick="window.appHandlers.openTimetableSlotModal('${slot.id}', '${classObj.id}')">
-                              <i data-lucide="edit-2" style="width:12px; height:12px;"></i>
-                            </button>
-                            <button class="slot-hover-btn delete" title="Delete Period" onclick="window.appHandlers.deleteTimetableSlot('${slot.id}')">
-                              <i data-lucide="trash-2" style="width:12px; height:12px;"></i>
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-                    `;
-                  }).join("")}
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-  }
-
-  // 2. CLASS WORKSPACE TIMETABLE TAB
-  function renderClassTimetableTab(tabContainer, currentClass, isAdmin) {
-    const periods = store.getTimetablePeriods();
-    const days = store.getTimetableDays();
-    const slots = store.getTimetableSlots({ classId: currentClass.id, session: currentClass.session });
-
-    tabContainer.innerHTML = `
-      <div class="view-header" style="margin-bottom:14px;">
-        <div class="view-title-group">
-          <h2 style="font-size:18px; font-weight:700; color:var(--text-heading);">${currentClass.name} Weekly Timetable & Room Allocations</h2>
-          <p>Schedule for <strong>${currentClass.name}</strong> • <strong>${currentClass.session}</strong> (${slots.length} Assigned Periods)</p>
-        </div>
-        <div class="view-actions">
-          ${isAdmin ? `
-            <button class="btn btn-primary btn-sm" onclick="window.appHandlers.openTimetableSlotModal(null, '${currentClass.id}')"><i data-lucide="plus-circle"></i> Add Period</button>
-            <button class="btn btn-secondary btn-sm" onclick="window.appHandlers.autoGenerateTimetable('${currentClass.id}')"><i data-lucide="sparkles"></i> Auto-Generate</button>
-          ` : ''}
-          <button class="btn btn-secondary btn-sm" onclick="window.appHandlers.printClassTimetable('${currentClass.id}')"><i data-lucide="printer"></i> Print</button>
-          <button class="btn btn-secondary btn-sm" onclick="window.appHandlers.exportClassTimetableCSV('${currentClass.id}')"><i data-lucide="download"></i> Export CSV</button>
-        </div>
       </div>
 
-      <div id="workspace-tt-grid-mount"></div>
-    `;
-
-    renderTimetableClassGrid(document.getElementById("workspace-tt-grid-mount"), currentClass);
-    if (window.lucide) window.lucide.createIcons();
-  }
-
-  // 3. TEACHER TIMETABLE GRID
-  function renderTimetableTeacherGrid(container, teacherId) {
-    if (!container) return;
-    const teacher = store.getTeacherById(teacherId) || store.getCurrentTeacher();
-    if (!teacher) {
-      container.innerHTML = `<div style="padding:40px; text-align:center; color:var(--text-muted);">Teacher not found.</div>`;
-      return;
-    }
-
-    const periods = store.getTimetablePeriods();
-    const days = store.getTimetableDays();
-    const slots = store.getTimetableSlots({ teacherId: teacher.id, session: activeSessionFilter, term: activeTermFilter });
-
-    container.innerHTML = `
-      <!-- Teacher Workload Overview Banner -->
-      <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:16px; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
-        <div style="display:flex; align-items:center; gap:14px;">
-          <img src="${teacher.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&fit=crop'}" style="width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid var(--primary);" />
+      <!-- Roll Call Student Register Table -->
+      <div class="table-card">
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
           <div>
-            <h3 style="font-size:16px; font-weight:700; color:var(--text-heading); margin:0;">${teacher.name}</h3>
-            <div style="font-size:12.5px; color:var(--text-muted);">${teacher.specialization} • ID: <code>${teacher.teacherId}</code></div>
+            <h3 style="font-size: 15px; font-weight: 700; color: var(--text-heading); margin: 0;">
+              Daily Roll Call (${formattedDateHeader})
+            </h3>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+              ${isFormTeacher ? 'Mark each student as Present, Absent, Late, or Excused and submit register.' : 'Viewing recorded student roll call entries.'}
+            </div>
           </div>
+
+          ${isFormTeacher ? `
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-quick-mark-all-present">
+                <i data-lucide="check-check"></i> Mark All Present
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-quick-mark-all-absent">
+                <i data-lucide="x"></i> Mark All Absent
+              </button>
+            </div>
+          ` : ''}
         </div>
 
-        <div style="display:flex; gap:12px;">
-          <div style="background:var(--bg-subtle); padding:8px 16px; border-radius:var(--radius-md); text-align:center;">
-            <div style="font-size:18px; font-weight:800; color:var(--primary);">${slots.length}</div>
-            <div style="font-size:11px; color:var(--text-muted); font-weight:600;">Periods / Week</div>
-          </div>
-          <div style="background:var(--bg-subtle); padding:8px 16px; border-radius:var(--radius-md); text-align:center;">
-            <div style="font-size:18px; font-weight:800; color:var(--success);">${35 - slots.length}</div>
-            <div style="font-size:11px; color:var(--text-muted); font-weight:600;">Free Periods</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="timetable-grid-card">
         <div class="table-responsive">
-          <table class="timetable-grid-table">
+          <table class="data-table">
             <thead>
               <tr>
-                <th class="timetable-day-col" style="text-align:center;">DAY</th>
-                ${periods.map(p => {
-                  if (p.isBreak) return `<th style="width:65px; background:#f1f5f9; color:#64748b; font-size:10.5px; padding:6px 2px;">Break</th>`;
-                  return `
-                    <th class="timetable-period-th">
-                      <div class="period-name">${p.label}</div>
-                      <div class="period-time">${p.time}</div>
-                    </th>
-                  `;
-                }).join("")}
+                <th style="width: 4%;">#</th>
+                <th style="min-width: 220px;">Student Information</th>
+                <th>Student ID</th>
+                <th>Admission No</th>
+                <th style="text-align: center; min-width: 260px;">Attendance Status</th>
+                <th style="min-width: 180px;">Remarks / Reason</th>
               </tr>
             </thead>
-            <tbody>
-              ${days.map(day => `
-                <tr>
-                  <td class="timetable-day-col">${day.toUpperCase()}</td>
-                  ${periods.map(p => {
-                    if (p.isBreak) {
-                      return `<td class="timetable-break-cell"><span style="font-size:10px; color:#94a3b8; font-weight:700;">Break</span></td>`;
-                    }
+            <tbody id="attendance-register-tbody">
+              ${classStudents.length > 0 ? classStudents.map((s, idx) => {
+                const sRecord = existingRecord?.records?.find(r => r.studentId === s.id);
+                const currentStatus = sRecord ? sRecord.status : (existingRecord ? "Absent" : "Present");
+                const currentRemarks = sRecord ? (sRecord.remarks || "") : "";
 
-                    const slot = slots.find(s => s.day === day && Number(s.periodNumber) === Number(p.id));
-                    if (!slot) {
-                      return `
-                        <td class="timetable-slot-cell" style="background:#fcfdfd;">
-                          <div style="height:100%; min-height:84px; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:11px; font-style:italic;">
-                            Free Period
-                          </div>
-                        </td>
-                      `;
-                    }
-
-                    const cls = store.getClassById(slot.classId);
-                    const sub = store.getSubjectById(slot.subjectId);
-                    const slotConflicts = store.detectTimetableConflicts(slot, slot.id);
-                    const hasConflict = slotConflicts.length > 0;
-
-                    return `
-                      <td class="timetable-slot-cell">
-                        <div class="slot-card ${hasConflict ? 'has-conflict' : ''}" style="border-left-color: #0284c7;">
-                          <div class="slot-card-header">
-                            <div class="slot-subject-title" style="color:#0369a1;">${cls?.name || 'Class'}</div>
-                            <span class="slot-badge-type">${slot.type || 'Lecture'}</span>
-                          </div>
-                          <div style="font-size:11.5px; font-weight:600; color:var(--text-heading);">${sub?.name || 'Subject'}</div>
-                          <div style="font-size:10px; color:#64748b; display:flex; align-items:center; gap:3px;">
-                            <i data-lucide="map-pin" style="width:10px; height:10px;"></i> ${slot.room || 'Classroom'}
-                          </div>
-                          ${hasConflict ? `
-                            <span class="slot-conflict-indicator" style="margin-top:2px;">
-                              <i data-lucide="alert-triangle" style="width:10px; height:10px;"></i> Clash
-                            </span>
-                          ` : ''}
-                        </div>
-                      </td>
-                    `;
-                  }).join("")}
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-  }
-
-  // 4. TEACHER PANEL DEDICATED TIMETABLE VIEW
-  function renderTeacherTimetable(container) {
-    const currentTeacher = store.getCurrentTeacher();
-    const currentSession = store.getCurrentSession();
-    const currentTerm = store.getSchool().currentTerm || "First Term";
-
-    container.innerHTML = `
-      <div class="view-header">
-        <div class="view-title-group">
-          <div class="view-eyebrow">TEACHING FACULTY SCHEDULE</div>
-          <h1>My Weekly Teaching Timetable</h1>
-          <p>Class periods, room locations, and lab schedules for <strong>${currentTeacher.name}</strong> • <strong>${currentSession}</strong> (${currentTerm})</p>
-        </div>
-        <div class="view-actions">
-          <button class="btn btn-secondary btn-sm" id="btn-print-teacher-panel-tt"><i data-lucide="printer"></i> Print My Schedule</button>
-        </div>
-      </div>
-
-      <div id="teacher-panel-tt-mount"></div>
-    `;
-
-    renderTimetableTeacherGrid(document.getElementById("teacher-panel-tt-mount"), currentTeacher.id);
-
-    document.getElementById("btn-print-teacher-panel-tt")?.addEventListener("click", () => {
-      const periods = store.getTimetablePeriods();
-      const days = store.getTimetableDays();
-      const slots = store.getTimetableSlots({ teacherId: currentTeacher.id, session: currentSession, term: currentTerm });
-      window.exportUtils.printTimetable({ name: `Teacher: ${currentTeacher.name}` }, slots, periods, days, store.getSchool(), currentSession, currentTerm);
-    });
-
-    if (window.lucide) window.lucide.createIcons();
-  }
-
-  // 5. MASTER SCHOOL TIMETABLE MATRIX
-  function renderTimetableMasterGrid(container, day) {
-    if (!container) return;
-    const classes = store.getClasses(activeSessionFilter);
-    const periods = store.getTimetablePeriods().filter(p => !p.isBreak);
-    const targetDay = day || "Monday";
-
-    container.innerHTML = `
-      <div style="background:var(--bg-subtle); padding:10px 14px; border-radius:var(--radius-md); margin-bottom:12px; font-size:13px; font-weight:600; color:var(--text-heading);">
-        Showing All Classes for <strong>${targetDay.toUpperCase()}</strong> • Session ${activeSessionFilter} (${activeTermFilter})
-      </div>
-
-      <div class="timetable-grid-card">
-        <div class="table-responsive">
-          <table class="timetable-grid-table">
-            <thead>
-              <tr>
-                <th class="timetable-day-col" style="width:130px; text-align:center;">CLASS ARM</th>
-                ${periods.map(p => `
-                  <th class="timetable-period-th">
-                    <div class="period-name">${p.label}</div>
-                    <div class="period-time">${p.time}</div>
-                  </th>
-                `).join("")}
-              </tr>
-            </thead>
-            <tbody>
-              ${classes.map(c => {
-                const classSlots = store.getTimetableSlots({ classId: c.id, session: activeSessionFilter, term: activeTermFilter, day: targetDay });
                 return `
-                  <tr>
-                    <td class="timetable-day-col" style="font-weight:700; color:var(--primary);">${c.name}</td>
-                    ${periods.map(p => {
-                      const slot = classSlots.find(s => Number(s.periodNumber) === Number(p.id));
-                      if (!slot) {
-                        return `<td class="timetable-slot-cell" style="background:#fafafa;"><div style="text-align:center; color:#cbd5e1; font-size:11px; padding:12px 0;">—</div></td>`;
-                      }
-                      const sub = store.getSubjectById(slot.subjectId);
-                      const tch = store.getTeacherById(slot.teacherId);
-                      return `
-                        <td class="timetable-slot-cell">
-                          <div style="padding:4px; font-size:11.5px;">
-                            <strong style="color:var(--text-heading); display:block;">${sub?.name || 'Subject'}</strong>
-                            <div style="color:var(--text-muted); font-size:10.5px;">${tch?.name || 'Teacher'}</div>
-                            <div style="color:#64748b; font-size:9.5px; font-style:italic;">${slot.room || ''}</div>
-                          </div>
-                        </td>
-                      `;
-                    }).join("")}
+                  <tr data-student-row-id="${s.id}">
+                    <td style="color: var(--text-muted); font-weight: 600;">${idx + 1}</td>
+                    <td>
+                      <div style="display: flex; align-items: center; gap: 10px;">
+                        <img src="${s.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&h=100'}" alt="${s.name}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1.5px solid #cbd5e1;" />
+                        <div>
+                          <strong style="color: var(--text-heading);">${s.name}</strong>
+                          <div style="font-size: 11px; color: var(--text-muted);">${s.gender} • ${s.dob || '2010'}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td><code>${s.studentId}</code></td>
+                    <td>${s.admissionNo || 'ADM124'}</td>
+
+                    <!-- Status Column (Interactive for Form Teacher, Read-Only for Others) -->
+                    <td style="text-align: center;">
+                      ${isFormTeacher ? `
+                        <div class="att-segmented-group" data-student-id="${s.id}">
+                          <button type="button" class="att-status-btn att-present ${currentStatus === 'Present' ? 'active-present' : ''}" data-status="Present" title="Present">
+                            <i data-lucide="check"></i> Present
+                          </button>
+                          <button type="button" class="att-status-btn att-absent ${currentStatus === 'Absent' ? 'active-absent' : ''}" data-status="Absent" title="Absent">
+                            <i data-lucide="x"></i> Absent
+                          </button>
+                          <button type="button" class="att-status-btn att-late ${currentStatus === 'Late' ? 'active-late' : ''}" data-status="Late" title="Late">
+                            <i data-lucide="clock"></i> Late
+                          </button>
+                          <button type="button" class="att-status-btn att-excused ${currentStatus === 'Excused' ? 'active-excused' : ''}" data-status="Excused" title="Excused">
+                            <i data-lucide="shield-check"></i> Excused
+                          </button>
+                        </div>
+                      ` : `
+                        <span class="badge ${
+                          currentStatus === 'Present' ? 'badge-success' :
+                          currentStatus === 'Absent' ? 'badge-danger' :
+                          currentStatus === 'Late' ? 'badge-warning' :
+                          currentStatus === 'Excused' ? 'badge-primary' : 'badge-neutral'
+                        }" style="font-size: 12px; padding: 4px 10px;">
+                          ${currentStatus}
+                        </span>
+                      `}
+                    </td>
+
+                    <!-- Remarks Column -->
+                    <td>
+                      ${isFormTeacher ? `
+                        <input type="text" class="form-input att-student-remark" data-student-id="${s.id}" value="${currentRemarks}" placeholder="Optional remark (e.g. sick bay, permission)..." style="font-size: 12px; padding: 4px 8px; height: 32px;">
+                      ` : `
+                        <span style="font-size: 12px; color: ${currentRemarks ? 'var(--text-body)' : 'var(--text-muted)'}; font-style: ${currentRemarks ? 'normal' : 'italic'};">
+                          ${currentRemarks || 'No remarks recorded'}
+                        </span>
+                      `}
+                    </td>
                   </tr>
                 `;
-              }).join("")}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-  }
-
-  // 6. VENUE / LAB OCCUPANCY GRID
-  function renderTimetableVenueGrid(container, roomName) {
-    if (!container) return;
-    const periods = store.getTimetablePeriods();
-    const days = store.getTimetableDays();
-    const slots = store.getTimetableSlots({ room: roomName, session: activeSessionFilter, term: activeTermFilter });
-
-    container.innerHTML = `
-      <div style="background:var(--bg-subtle); padding:10px 14px; border-radius:var(--radius-md); margin-bottom:12px; font-size:13px; font-weight:600; color:var(--text-heading);">
-        Facility Utilization for: <strong>${roomName}</strong> • ${slots.length} Occupied Periods / Week
-      </div>
-
-      <div class="timetable-grid-card">
-        <div class="table-responsive">
-          <table class="timetable-grid-table">
-            <thead>
-              <tr>
-                <th class="timetable-day-col" style="text-align:center;">DAY</th>
-                ${periods.map(p => {
-                  if (p.isBreak) return `<th style="width:65px; background:#f1f5f9; color:#64748b; font-size:10.5px; padding:6px 2px;">Break</th>`;
-                  return `
-                    <th class="timetable-period-th">
-                      <div class="period-name">${p.label}</div>
-                      <div class="period-time">${p.time}</div>
-                    </th>
-                  `;
-                }).join("")}
-              </tr>
-            </thead>
-            <tbody>
-              ${days.map(day => `
+              }).join("") : `
                 <tr>
-                  <td class="timetable-day-col">${day.toUpperCase()}</td>
-                  ${periods.map(p => {
-                    if (p.isBreak) return `<td class="timetable-break-cell"><span style="font-size:10px; color:#94a3b8; font-weight:700;">Break</span></td>`;
-                    const slot = slots.find(s => s.day === day && Number(s.periodNumber) === Number(p.id));
-                    if (!slot) {
-                      return `<td class="timetable-slot-cell" style="background:#fcfdfd;"><div style="height:100%; min-height:84px; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:11px;">Available</div></td>`;
-                    }
-                    const cls = store.getClassById(slot.classId);
-                    const sub = store.getSubjectById(slot.subjectId);
-                    const tch = store.getTeacherById(slot.teacherId);
-                    return `
-                      <td class="timetable-slot-cell">
-                        <div class="slot-card" style="border-left-color: #059669; background:#f0fdf4;">
-                          <div class="slot-card-header">
-                            <div class="slot-subject-title" style="color:#15803d;">${cls?.name || 'Class'}</div>
-                            <span class="slot-badge-type">${slot.type || 'Practical'}</span>
-                          </div>
-                          <div style="font-size:11.5px; font-weight:600; color:var(--text-heading);">${sub?.name}</div>
-                          <div style="font-size:10px; color:var(--text-muted);">${tch?.name}</div>
-                        </div>
-                      </td>
-                    `;
-                  }).join("")}
+                  <td colspan="6" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                    No students enrolled in this class.
+                  </td>
                 </tr>
-              `).join("")}
+              `}
             </tbody>
           </table>
         </div>
+
+        ${isFormTeacher ? `
+          <div style="padding: 16px 20px; border-top: 1px solid var(--border-color); background: #f8fafc; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div style="font-size: 12.5px; color: var(--text-muted);">
+              <i data-lucide="info" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i>
+              Submitting updates the official school roll call register and calculates attendance broadsheets.
+            </div>
+            <button type="button" class="btn btn-primary" id="btn-save-attendance-register">
+              <i data-lucide="save"></i> Save & Submit Register (${formattedDateHeader})
+            </button>
+          </div>
+        ` : ''}
       </div>
     `;
-  }
 
-  // 7. CONFLICT SCANNER VIEW
-  function renderTimetableConflictsView(container, report) {
-    if (!container) return;
+    // Render Calendar Grid Helper
+    const renderCalendarGrid = () => {
+      const grid = document.getElementById("cal-days-grid-container");
+      if (!grid) return;
 
-    if (report.totalConflicts === 0) {
-      container.innerHTML = `
-        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:var(--radius-lg); padding:36px; text-align:center;">
-          <div style="width:52px; height:52px; border-radius:50%; background:#dcfce7; color:#15803d; display:flex; align-items:center; justify-content:center; margin:0 auto 12px auto;">
-            <i data-lucide="check-circle-2" style="width:28px; height:28px;"></i>
+      const year = attendanceCalendarYear;
+      const month = attendanceCalendarMonth;
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const daysInMonth = lastDay.getDate();
+
+      // Monday-first calculation (0 = Mon, ..., 6 = Sun)
+      let startingDayIndex = firstDay.getDay() - 1;
+      if (startingDayIndex === -1) startingDayIndex = 6;
+
+      const markedSet = new Set(store.getAttendanceDatesForMonth(currentClass.id, year, month));
+
+      let cellsHtml = "";
+
+      // Empty cells before first day
+      for (let i = 0; i < startingDayIndex; i++) {
+        cellsHtml += `<div class="cal-day-cell cal-day-empty"></div>`;
+      }
+
+      // Day cells
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const isSelected = dateStr === selectedAttendanceDate;
+        const hasRecord = markedSet.has(dateStr);
+        const isToday = dateStr === "2026-10-05";
+
+        cellsHtml += `
+          <div class="cal-day-cell ${isSelected ? 'selected' : ''} ${hasRecord ? 'has-record' : ''} ${isToday ? 'cal-today' : ''}" data-cal-date="${dateStr}">
+            <span class="cal-day-number">${day}</span>
+            ${hasRecord ? `<span class="cal-dot"></span>` : ''}
           </div>
-          <h3 style="font-size:18px; font-weight:700; color:#166534; margin-bottom:6px;">Zero Schedule Conflicts Detected!</h3>
-          <p style="font-size:13px; color:#15803d; max-width:480px; margin:0 auto;">
-            All teacher schedules and facility allocations for academic session <strong>${report.session}</strong> are completely synchronized and conflict-free.
-          </p>
-        </div>
-      `;
-      return;
+        `;
+      }
+
+      grid.innerHTML = cellsHtml;
+
+      // Attach click listeners to calendar day cells
+      grid.querySelectorAll("[data-cal-date]").forEach(cell => {
+        cell.addEventListener("click", () => {
+          selectedAttendanceDate = cell.getAttribute("data-cal-date");
+          attendanceCalendarOpen = false;
+          renderClassAttendanceTab(tabContainer, currentClass, isAdmin);
+          if (window.lucide) window.lucide.createIcons();
+        });
+      });
+    };
+
+    renderCalendarGrid();
+
+    // Toggle Calendar Dropdown
+    document.getElementById("btn-toggle-attendance-cal")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      attendanceCalendarOpen = !attendanceCalendarOpen;
+      const popup = document.getElementById("attendance-calendar-popup");
+      if (popup) {
+        popup.classList.toggle("active", attendanceCalendarOpen);
+      }
+    });
+
+    // Prev / Next Month
+    document.getElementById("cal-prev-month")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (attendanceCalendarMonth === 0) {
+        attendanceCalendarMonth = 11;
+        attendanceCalendarYear--;
+      } else {
+        attendanceCalendarMonth--;
+      }
+      renderClassAttendanceTab(tabContainer, currentClass, isAdmin);
+      if (window.lucide) window.lucide.createIcons();
+    });
+
+    document.getElementById("cal-next-month")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (attendanceCalendarMonth === 11) {
+        attendanceCalendarMonth = 0;
+        attendanceCalendarYear++;
+      } else {
+        attendanceCalendarMonth++;
+      }
+      renderClassAttendanceTab(tabContainer, currentClass, isAdmin);
+      if (window.lucide) window.lucide.createIcons();
+    });
+
+    // Go to Today
+    document.getElementById("cal-btn-go-today")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      selectedAttendanceDate = "2026-10-05";
+      attendanceCalendarMonth = 9;
+      attendanceCalendarYear = 2026;
+      attendanceCalendarOpen = false;
+      renderClassAttendanceTab(tabContainer, currentClass, isAdmin);
+      if (window.lucide) window.lucide.createIcons();
+    });
+
+    // Close calendar on outside click
+    document.addEventListener("click", (e) => {
+      if (attendanceCalendarOpen && !e.target.closest(".attendance-date-selector-wrapper")) {
+        attendanceCalendarOpen = false;
+        document.getElementById("attendance-calendar-popup")?.classList.remove("active");
+      }
+    });
+
+    // Print & Export Buttons
+    document.getElementById("btn-print-attendance-register")?.addEventListener("click", () => {
+      const rec = store.getAttendanceRecord(currentClass.id, selectedAttendanceDate);
+      window.exportUtils.printAttendanceRegister(currentClass, rec, classStudents, selectedAttendanceDate, formTeacher, store.getSchool());
+    });
+
+    document.getElementById("btn-export-attendance-csv")?.addEventListener("click", () => {
+      const rec = store.getAttendanceRecord(currentClass.id, selectedAttendanceDate);
+      window.exportUtils.downloadAttendanceCSV(currentClass, rec, classStudents, selectedAttendanceDate);
+      showToast(`Exported ${currentClass.name} Attendance CSV.`, "success");
+    });
+
+    // Form Teacher Interactive Controls
+    if (isFormTeacher) {
+      // Segmented Toggle buttons
+      tabContainer.querySelectorAll(".att-status-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const group = btn.closest(".att-segmented-group");
+          const status = btn.getAttribute("data-status");
+          if (group) {
+            group.querySelectorAll(".att-status-btn").forEach(b => {
+              b.classList.remove("active-present", "active-absent", "active-late", "active-excused");
+            });
+            btn.classList.add(`active-${status.toLowerCase()}`);
+          }
+        });
+      });
+
+      // Quick "Mark All Present"
+      document.getElementById("btn-quick-mark-all-present")?.addEventListener("click", () => {
+        tabContainer.querySelectorAll(".att-segmented-group").forEach(group => {
+          group.querySelectorAll(".att-status-btn").forEach(b => {
+            b.classList.remove("active-present", "active-absent", "active-late", "active-excused");
+            if (b.getAttribute("data-status") === "Present") {
+              b.classList.add("active-present");
+            }
+          });
+        });
+        showToast("Marked all students as Present.", "info");
+      });
+
+      // Quick "Mark All Absent"
+      document.getElementById("btn-quick-mark-all-absent")?.addEventListener("click", () => {
+        tabContainer.querySelectorAll(".att-segmented-group").forEach(group => {
+          group.querySelectorAll(".att-status-btn").forEach(b => {
+            b.classList.remove("active-present", "active-absent", "active-late", "active-excused");
+            if (b.getAttribute("data-status") === "Absent") {
+              b.classList.add("active-absent");
+            }
+          });
+        });
+        showToast("Marked all students as Absent.", "info");
+      });
+
+      // Save & Submit Register
+      document.getElementById("btn-save-attendance-register")?.addEventListener("click", () => {
+        const studentRecords = [];
+        tabContainer.querySelectorAll("tr[data-student-row-id]").forEach(row => {
+          const sId = row.getAttribute("data-student-row-id");
+          const activeBtn = row.querySelector(".att-status-btn.active-present, .att-status-btn.active-absent, .att-status-btn.active-late, .att-status-btn.active-excused");
+          const status = activeBtn ? activeBtn.getAttribute("data-status") : "Present";
+          const remarkInput = row.querySelector(".att-student-remark");
+          const remarks = remarkInput ? remarkInput.value.trim() : "";
+
+          studentRecords.push({
+            studentId: sId,
+            status,
+            remarks
+          });
+        });
+
+        store.saveAttendanceRecord({
+          classId: currentClass.id,
+          session: currentSession,
+          term: currentTerm,
+          date: selectedAttendanceDate,
+          markedByTeacherId: currentTeacher.id,
+          studentRecords
+        });
+
+        renderClassAttendanceTab(tabContainer, currentClass, isAdmin);
+        if (window.lucide) window.lucide.createIcons();
+        showToast(`Attendance register for ${currentClass.name} on ${formattedDateHeader} saved & submitted!`, "success");
+      });
     }
 
-    container.innerHTML = `
-      <div style="margin-bottom:14px;">
-        <h3 style="font-size:16px; font-weight:700; color:var(--text-heading);">Conflict Diagnosis & Collision Resolver (${report.totalConflicts} Total)</h3>
-        <p style="font-size:12.5px; color:var(--text-muted);">Review collisions below and click "Resolve" to swap periods or reassign faculties.</p>
-      </div>
-
-      <div style="display:flex; flex-direction:column; gap:10px;">
-        ${report.conflicts.map(c => `
-          <div class="conflict-card ${c.type === 'room' ? 'warning' : ''}">
-            <div class="conflict-card-details">
-              <h4>
-                <i data-lucide="${c.type === 'teacher' ? 'user-x' : 'map-pin-off'}" style="width:16px; height:16px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
-                ${c.title}
-              </h4>
-              <p>${c.description}</p>
-            </div>
-            <div style="display:flex; gap:8px; flex-shrink:0;">
-              <button class="btn btn-secondary btn-sm" onclick="window.appHandlers.openTimetableSlotModal('${c.slotA.id}', '${c.slotA.classId}')">
-                <i data-lucide="edit-2"></i> Edit ${c.classA?.name || 'Slot A'}
-              </button>
-              <button class="btn btn-secondary btn-sm" onclick="window.appHandlers.openTimetableSlotModal('${c.slotB.id}', '${c.slotB.classId}')">
-                <i data-lucide="edit-2"></i> Edit ${c.classB?.name || 'Slot B'}
-              </button>
-            </div>
-          </div>
-        `).join("")}
-      </div>
-    `;
+    if (window.lucide) window.lucide.createIcons();
   }
 
+  // ==========================================================================
+  // ASSIGN FORM TEACHER MODAL (Admin & Class Workspace Action)
+  // ==========================================================================
+  function openAssignFormTeacherModal(classId) {
+    const cls = store.getClassById(classId);
+    if (!cls) return;
+
+    const currentFormTeacher = store.getClassFormTeacher(classId);
+    const availableTeachers = store.getAvailableTeachers();
+
+    const overlay = document.getElementById("global-modal-overlay");
+    if (!overlay) return;
+
+    overlay.innerHTML = `
+      <div class="modal-container" style="max-width: 520px;">
+        <div class="modal-header">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:36px; height:36px; border-radius:8px; background:rgba(249, 115, 22, 0.12); display:flex; align-items:center; justify-content:center; color:var(--primary);">
+              <i data-lucide="award"></i>
+            </div>
+            <div>
+              <h3 style="margin:0; font-size:16px;">Designate Form Teacher</h3>
+              <div style="font-size:12px; color:var(--text-muted);">${cls.name} (${cls.session})</div>
+            </div>
+          </div>
+          <button class="header-icon-btn" id="modal-close-x"><i data-lucide="x"></i></button>
+        </div>
+
+        <div class="modal-body">
+          <div style="background:#fff7ed; border:1px solid #fed7aa; padding:12px 14px; border-radius:var(--radius-md); margin-bottom:16px; font-size:12.5px; color:#9a3412;">
+            <i data-lucide="info" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
+            The <strong>Form Teacher</strong> (Class Master) holds primary pastoral responsibility for this class arm, including taking daily student roll call and managing class registers.
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" style="font-weight:700;">Select Faculty Member as Form Teacher</label>
+            <select class="form-select" id="form-teacher-select" style="font-weight:600;">
+              <option value="">-- No Form Teacher (Unassigned) --</option>
+              ${availableTeachers.map(t => `
+                <option value="${t.id}" ${currentFormTeacher && currentFormTeacher.id === t.id ? 'selected' : ''}>
+                  ${t.name} (${t.specialization})
+                </option>
+              `).join("")}
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="modal-btn-cancel">Cancel</button>
+          <button class="btn btn-primary" id="modal-btn-save-form-teacher">
+            <i data-lucide="check"></i> Save Form Teacher Assignment
+          </button>
+        </div>
+      </div>
+    `;
+
+    overlay.classList.add("active");
+    if (window.lucide) window.lucide.createIcons();
+
+    overlay.querySelector("#modal-close-x")?.addEventListener("click", closeAllModals);
+    overlay.querySelector("#modal-btn-cancel")?.addEventListener("click", closeAllModals);
+
+    overlay.querySelector("#modal-btn-save-form-teacher")?.addEventListener("click", () => {
+      const selectedTeacherId = document.getElementById("form-teacher-select")?.value;
+      store.setClassFormTeacher(classId, selectedTeacherId);
+      closeAllModals();
+      renderSidebar();
+      renderView();
+      const newTch = store.getTeacherById(selectedTeacherId);
+      showToast(selectedTeacherId ? `Assigned ${newTch?.name} as Form Teacher for ${cls.name}.` : `Removed Form Teacher for ${cls.name}.`, "success");
+    });
+  }
 
   // ==========================================================================
-  // TEACHER DASHBOARD & PROFILE
+  // TEACHER DASHBOARD & PROFILE (Exact Admin Class Card Layout with ONLY Students Metric Pill)
   // ==========================================================================
   function renderTeacherDashboard(container) {
     const currentTeacher = store.getCurrentTeacher();
     const currentSession = store.getCurrentSession();
     const teacherClasses = store.getTeacherClasses(currentTeacher.id, currentSession);
+    const formClasses = store.getTeacherFormClasses(currentTeacher.id, currentSession);
 
     container.innerHTML = `
       <div class="view-header">
@@ -2993,7 +2898,7 @@
         <div class="hero-stat-display">
           <div class="hero-stat-eyebrow">TEACHING ASSIGNMENTS • ${currentSession}</div>
           <div class="hero-stat-number">${teacherClasses.length}</div>
-          <div class="hero-stat-narrative">Active class arms assigned for Continuous Assessment (CA1, CA2, Terminal Exam) score recording and broadsheet submission.</div>
+          <div class="hero-stat-narrative">Active class arms assigned for Continuous Assessment score recording, daily roll call, and examination broadsheets.</div>
         </div>
         <div class="hero-metric-cluster">
           <div class="hero-metric-item">
@@ -3001,8 +2906,8 @@
             <div class="hero-metric-lbl">Students</div>
           </div>
           <div class="hero-metric-item">
-            <div class="hero-metric-val">${teacherClasses.reduce((acc, c) => acc + ((c.assignedSubjects || c.subjects || []).length), 0)}</div>
-            <div class="hero-metric-lbl">Subjects</div>
+            <div class="hero-metric-val">${formClasses.length}</div>
+            <div class="hero-metric-lbl">Form Classes</div>
           </div>
         </div>
       </div>
@@ -3013,38 +2918,54 @@
         </div>
       </div>
 
-      <div class="class-grid">
-        ${teacherClasses.map(c => {
+      <!-- Teacher Class Cards: Exactly matches Admin Class Cards layout, but ONLY Students Metric Pill -->
+      <div class="class-grid" id="teacher-class-grid">
+        ${teacherClasses.length > 0 ? teacherClasses.map(c => {
           const classStudents = store.getClassStudents(c.id);
-          const subs = c.assignedSubjects || c.subjects || [];
+          const isFormTeacherForClass = formClasses.some(fc => fc.id === c.id);
+
           return `
             <div class="class-card" onclick="window.appHandlers.openTeacherClassWorkspace('${c.id}')">
               <div>
                 <div class="class-card-header">
                   <div class="class-name-badge">${c.name}</div>
-                  <div class="class-session-tag">${c.session}</div>
+                  <span class="badge badge-neutral" style="font-size:11px; font-weight:600;">${c.session}</span>
                 </div>
-                <div style="font-size:12.5px; color:var(--text-muted);">${c.category || 'Secondary Section'} • Arm ${c.section || 'A'}</div>
-
-                <div class="class-card-stats">
-                  <div><i data-lucide="users"></i> <strong>${classStudents.length}</strong> Students</div>
-                  <div><i data-lucide="book-open"></i> <strong>${subs.length}</strong> Subjects</div>
+                
+                <div class="class-section-pill">
+                  <span class="badge badge-primary" style="font-size:10px;">${c.category || 'Secondary Section'}</span>
+                  <span>• Arm ${c.section || 'A'}</span>
+                  ${isFormTeacherForClass ? `
+                    <span class="badge badge-success" style="font-size:10px; margin-left:auto; display:inline-flex; align-items:center; gap:3px;">
+                      <i data-lucide="award" style="width:10px; height:10px;"></i> Form Class
+                    </span>
+                  ` : ''}
                 </div>
 
-                <div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:4px;">
-                  ${subs.map(s => `<span class="badge badge-primary" style="font-size:11px;">${s.name}</span>`).join("")}
+                <!-- Teacher Card: ONLY Enrolled Students Metric Pill -->
+                <div class="class-card-metrics-bar teacher-single-metric">
+                  <div class="metric-pill-item" style="padding: 10px 14px;">
+                    <div class="metric-pill-val" style="font-size: 20px;">${classStudents.length}</div>
+                    <div class="metric-pill-lbl">Enrolled Students</div>
+                  </div>
                 </div>
               </div>
 
               <div class="class-card-footer">
-                <span>Enter Class Score Desk</span>
+                <span>${isFormTeacherForClass ? 'Open Daily Register & Score Desk' : 'Open Class Workspace'}</span>
                 <i data-lucide="arrow-right"></i>
               </div>
             </div>
           `;
-        }).join("")}
+        }).join("") : `
+          <div style="grid-column: 1 / -1; background:var(--bg-card); padding:36px; text-align:center; border-radius:var(--radius-lg); border:1px solid var(--border-color); color:var(--text-muted);">
+            No classes assigned to your faculty profile in this session.
+          </div>
+        `}
       </div>
     `;
+
+    if (window.lucide) window.lucide.createIcons();
   }
 
   function renderTeacherProfile(container) {
@@ -3713,8 +3634,20 @@
             </div>
 
             <!-- Current Active Assignments -->
+            ${(() => {
+              const formClasses = store.getTeacherFormClasses(currentTeacher.id, selectedSession);
+              return formClasses.length > 0 ? `
+                <div style="background:#ecfdf5; border:1px solid #a7f3d0; padding:10px 14px; border-radius:var(--radius-md); margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
+                  <div style="font-size:12.5px; color:#065f46;">
+                    <i data-lucide="award" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
+                    <strong>Designated Form Teacher for:</strong> ${formClasses.map(fc => `<span class="badge badge-success" style="margin-left:4px;">${fc.name} (${fc.session})</span>`).join("")}
+                  </div>
+                </div>
+              ` : '';
+            })()}
+
             <h4 style="font-size:14px; font-weight:700; color:var(--text-heading); margin-bottom:8px;">
-              Active Assignments in ${selectedSession} (${assignments.length})
+              Subject Teaching Assignments in ${selectedSession} (${assignments.length})
             </h4>
             <div class="table-card">
               <table class="data-table" style="font-size:13px;">
@@ -5237,311 +5170,6 @@
     });
   }
 
-  // TIMETABLE SLOT ADD / EDIT MODAL WITH LIVE CONFLICT DETECTION
-  function openTimetableSlotModal(slotId = null, defaultClassId = null, defaultDay = "Monday", defaultPeriod = 1) {
-    const existingSlot = slotId ? store.getTimetableSlotById(slotId) : null;
-    const currentSession = existingSlot ? existingSlot.session : activeSessionFilter;
-    const currentTerm = existingSlot ? existingSlot.term : activeTermFilter;
-    const classes = store.getClasses(currentSession);
-    const targetClassId = existingSlot ? existingSlot.classId : (defaultClassId || timetableClassId || classes[0]?.id);
-    const selectedClass = store.getClassById(targetClassId) || classes[0];
-
-    const assignedSubjects = store.getClassSubjects(selectedClass?.id);
-    const allSubjects = store.getSubjects();
-    const subjectsList = assignedSubjects.length > 0 ? assignedSubjects : allSubjects;
-    const teachers = store.getAvailableTeachers();
-    const venues = store.getVenues();
-    const periods = store.getTimetablePeriods().filter(p => !p.isBreak);
-    const days = store.getTimetableDays();
-
-    const selectedSubjectId = existingSlot ? existingSlot.subjectId : subjectsList[0]?.id;
-    const selectedTeacherId = existingSlot ? existingSlot.teacherId : (store.getSubjectTeacherForClass(selectedClass?.id, selectedSubjectId)?.id || teachers[0]?.id);
-    const selectedDay = existingSlot ? existingSlot.day : (defaultDay || "Monday");
-    const selectedPeriodNum = existingSlot ? Number(existingSlot.periodNumber) : Number(defaultPeriod || 1);
-    const selectedRoom = existingSlot ? existingSlot.room : (selectedClass ? `Room ${selectedClass.name}` : "Main Classroom");
-    const selectedType = existingSlot ? existingSlot.type : "Lecture";
-
-    const overlay = document.getElementById("global-modal-overlay");
-    if (!overlay) return;
-
-    overlay.innerHTML = `
-      <div class="modal-container large" style="width: 780px;">
-        <div class="modal-header">
-          <div style="display:flex; align-items:center; gap:10px;">
-            <div style="width:36px; height:36px; border-radius:8px; background:rgba(20, 43, 71, 0.08); display:flex; align-items:center; justify-content:center; color:var(--primary);">
-              <i data-lucide="calendar-plus"></i>
-            </div>
-            <div>
-              <h3 style="margin:0; font-size:16px;">${existingSlot ? 'Edit Period Slot' : 'Schedule New Period Slot'}</h3>
-              <div style="font-size:12px; color:var(--text-muted);">${currentSession} Academic Session • ${currentTerm}</div>
-            </div>
-          </div>
-          <button class="header-icon-btn" id="modal-close-x"><i data-lucide="x"></i></button>
-        </div>
-
-        <div class="modal-body">
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
-            <div class="form-group">
-              <label class="form-label">Academic Class</label>
-              <select class="form-select" id="tt-modal-class">
-                ${classes.map(c => `<option value="${c.id}" ${c.id === selectedClass?.id ? 'selected' : ''}>${c.name} (${c.session})</option>`).join("")}
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Day of the Week</label>
-              <select class="form-select" id="tt-modal-day">
-                ${days.map(d => `<option value="${d}" ${d === selectedDay ? 'selected' : ''}>${d}</option>`).join("")}
-              </select>
-            </div>
-          </div>
-
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
-            <div class="form-group">
-              <label class="form-label">Period Slot & Timing</label>
-              <select class="form-select" id="tt-modal-period">
-                ${periods.map(p => `<option value="${p.id}" ${Number(p.id) === selectedPeriodNum ? 'selected' : ''}>${p.label} (${p.time})</option>`).join("")}
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Period / Session Type</label>
-              <select class="form-select" id="tt-modal-type">
-                <option value="Lecture" ${selectedType === 'Lecture' ? 'selected' : ''}>Lecture (Standard Classroom)</option>
-                <option value="Practical" ${selectedType === 'Practical' ? 'selected' : ''}>Practical / Laboratory Session</option>
-                <option value="Tutorial" ${selectedType === 'Tutorial' ? 'selected' : ''}>Tutorial & Problem Solving</option>
-                <option value="Revision" ${selectedType === 'Revision' ? 'selected' : ''}>Revision & Curriculum Review</option>
-                <option value="Assessment" ${selectedType === 'Assessment' ? 'selected' : ''}>Continuous Assessment Test (CAT)</option>
-              </select>
-            </div>
-          </div>
-
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
-            <div class="form-group">
-              <label class="form-label">Subject</label>
-              <select class="form-select" id="tt-modal-subject">
-                ${subjectsList.map(s => `<option value="${s.id}" ${s.id === selectedSubjectId ? 'selected' : ''}>${s.name}</option>`).join("")}
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Subject Teacher</label>
-              <select class="form-select" id="tt-modal-teacher">
-                ${teachers.map(t => `<option value="${t.id}" ${t.id === selectedTeacherId ? 'selected' : ''}>${t.name} (${t.specialization.split('&')[0]})</option>`).join("")}
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Classroom / Facility / Lab Venue</label>
-            <select class="form-select" id="tt-modal-room">
-              ${venues.map(v => `<option value="${v.name}" ${v.name === selectedRoom ? 'selected' : ''}>${v.name} • ${v.type} (${v.building})</option>`).join("")}
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Lesson Focus / Notes (Optional)</label>
-            <input type="text" class="form-input" id="tt-modal-notes" value="${existingSlot ? (existingSlot.notes || '') : ''}" placeholder="e.g. Simultaneous Equations, Plant Anatomy, Optics Lab">
-          </div>
-
-          <!-- Real-Time Conflict Detection Preview Box -->
-          <div id="tt-modal-conflict-box" class="modal-conflict-box safe">
-            <i data-lucide="check-circle" style="width:16px; height:16px; flex-shrink:0;"></i>
-            <span id="tt-modal-conflict-msg">Checking real-time schedule conflict engine...</span>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          ${existingSlot ? `
-            <button class="btn btn-outline-danger" id="tt-modal-btn-delete" style="margin-right:auto;"><i data-lucide="trash-2"></i> Delete Period</button>
-          ` : ''}
-          <button class="btn btn-secondary" id="modal-btn-cancel">Cancel</button>
-          <button class="btn btn-primary" id="tt-modal-btn-save"><i data-lucide="check"></i> ${existingSlot ? 'Update Period' : 'Save Period Slot'}</button>
-        </div>
-      </div>
-    `;
-
-    overlay.classList.add("active");
-    if (window.lucide) window.lucide.createIcons();
-
-    overlay.querySelector("#modal-close-x")?.addEventListener("click", closeAllModals);
-    overlay.querySelector("#modal-btn-cancel")?.addEventListener("click", closeAllModals);
-
-    // Live Conflict Detection Engine
-    const updateConflictStatus = () => {
-      const classId = document.getElementById("tt-modal-class")?.value;
-      const day = document.getElementById("tt-modal-day")?.value;
-      const periodNumber = document.getElementById("tt-modal-period")?.value;
-      const teacherId = document.getElementById("tt-modal-teacher")?.value;
-      const room = document.getElementById("tt-modal-room")?.value;
-
-      const conflicts = store.detectTimetableConflicts({
-        classId,
-        session: currentSession,
-        term: currentTerm,
-        day,
-        periodNumber,
-        teacherId,
-        room
-      }, existingSlot?.id);
-
-      const conflictBox = document.getElementById("tt-modal-conflict-box");
-      const conflictMsg = document.getElementById("tt-modal-conflict-msg");
-      if (!conflictBox || !conflictMsg) return;
-
-      if (conflicts.length === 0) {
-        conflictBox.className = "modal-conflict-box safe";
-        conflictBox.innerHTML = `
-          <i data-lucide="check-circle" style="width:16px; height:16px; flex-shrink:0; color:#166534;"></i>
-          <span><strong>Safe to Schedule:</strong> No conflicts detected. Teacher and facility are available for Period ${periodNumber} on ${day}.</span>
-        `;
-      } else {
-        const hasCritical = conflicts.some(c => c.severity === "high" || c.type === "teacher");
-        conflictBox.className = `modal-conflict-box ${hasCritical ? 'danger' : 'warning'}`;
-        conflictBox.innerHTML = `
-          <i data-lucide="alert-triangle" style="width:16px; height:16px; flex-shrink:0;"></i>
-          <div>
-            <strong>Schedule Collision Detected!</strong>
-            <ul style="margin:4px 0 0 16px; padding:0;">
-              ${conflicts.map(c => `<li>${c.message}</li>`).join("")}
-            </ul>
-          </div>
-        `;
-      }
-      if (window.lucide) window.lucide.createIcons();
-    };
-
-    // Attach reactive input change listeners
-    ["tt-modal-class", "tt-modal-day", "tt-modal-period", "tt-modal-teacher", "tt-modal-room"].forEach(id => {
-      document.getElementById(id)?.addEventListener("change", updateConflictStatus);
-    });
-
-    updateConflictStatus();
-
-    // Delete handler
-    overlay.querySelector("#tt-modal-btn-delete")?.addEventListener("click", () => {
-      if (existingSlot && confirm("Delete this period from the timetable?")) {
-        store.deleteTimetableSlot(existingSlot.id);
-        closeAllModals();
-        renderView();
-        showToast("Period removed from timetable.", "info");
-      }
-    });
-
-    // Save handler
-    overlay.querySelector("#tt-modal-btn-save")?.addEventListener("click", () => {
-      const classId = document.getElementById("tt-modal-class")?.value;
-      const day = document.getElementById("tt-modal-day")?.value;
-      const periodNumber = document.getElementById("tt-modal-period")?.value;
-      const subjectId = document.getElementById("tt-modal-subject")?.value;
-      const teacherId = document.getElementById("tt-modal-teacher")?.value;
-      const room = document.getElementById("tt-modal-room")?.value;
-      const type = document.getElementById("tt-modal-type")?.value;
-      const notes = document.getElementById("tt-modal-notes")?.value;
-
-      const conflicts = store.detectTimetableConflicts({
-        classId,
-        session: currentSession,
-        term: currentTerm,
-        day,
-        periodNumber,
-        teacherId,
-        room
-      }, existingSlot?.id);
-
-      const hasTeacherCollision = conflicts.some(c => c.type === "teacher");
-      if (hasTeacherCollision) {
-        if (!confirm("Warning: A teacher double-booking collision was detected on this period. Do you still want to proceed and save?")) {
-          return;
-        }
-      }
-
-      store.saveTimetableSlot({
-        id: existingSlot ? existingSlot.id : null,
-        classId,
-        session: currentSession,
-        term: currentTerm,
-        day,
-        periodNumber,
-        subjectId,
-        teacherId,
-        room,
-        type,
-        notes
-      });
-
-      closeAllModals();
-      renderView();
-      showToast(`Saved period slot for ${store.getClassById(classId)?.name || 'Class'} (${day} P${periodNumber})!`, "success");
-    });
-  }
-
-  // COPY TIMETABLE MODAL
-  function openCopyTimetableModal(targetClassId) {
-    const targetClass = store.getClassById(targetClassId);
-    const classes = store.getClasses(activeSessionFilter);
-    const availableSources = classes.filter(c => c.id !== targetClassId);
-
-    if (availableSources.length === 0) {
-      showToast("No other classes available to copy timetable from.", "info");
-      return;
-    }
-
-    const overlay = document.getElementById("global-modal-overlay");
-    if (!overlay) return;
-
-    overlay.innerHTML = `
-      <div class="modal-container">
-        <div class="modal-header">
-          <h3>Copy Timetable Structure</h3>
-          <button class="header-icon-btn" id="modal-close-x"><i data-lucide="x"></i></button>
-        </div>
-
-        <div class="modal-body">
-          <div style="background:var(--bg-subtle); padding:12px; border-radius:var(--radius-md); margin-bottom:14px;">
-            Target Class: <strong>${targetClass?.name}</strong> (${activeSessionFilter} • ${activeTermFilter})
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Select Source Class to Copy From</label>
-            <select class="form-select" id="tt-copy-source-class">
-              ${availableSources.map(c => `
-                <option value="${c.id}">${c.name} (${c.session})</option>
-              `).join("")}
-            </select>
-          </div>
-
-          <div style="font-size:12px; color:var(--text-muted);">
-            Note: This will replicate the weekly period layout into <strong>${targetClass?.name}</strong>.
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button class="btn btn-secondary" id="modal-btn-cancel">Cancel</button>
-          <button class="btn btn-primary" id="tt-btn-confirm-copy"><i data-lucide="copy"></i> Copy Timetable</button>
-        </div>
-      </div>
-    `;
-
-    overlay.classList.add("active");
-    if (window.lucide) window.lucide.createIcons();
-
-    overlay.querySelector("#modal-close-x")?.addEventListener("click", closeAllModals);
-    overlay.querySelector("#modal-btn-cancel")?.addEventListener("click", closeAllModals);
-
-    overlay.querySelector("#tt-btn-confirm-copy")?.addEventListener("click", () => {
-      const sourceClassId = document.getElementById("tt-copy-source-class")?.value;
-      try {
-        store.copyClassTimetable(sourceClassId, targetClassId, activeSessionFilter, activeTermFilter);
-        closeAllModals();
-        renderView();
-        showToast(`Copied timetable to ${targetClass?.name} successfully!`, "success");
-      } catch (err) {
-        showToast(err.message, "error");
-      }
-    });
-  }
-
   // Global App Handlers Mount for Inline Handlers
   window.appHandlers = {
     openStudentProfile: (id) => openStudentProfileModal(id),
@@ -5554,6 +5182,7 @@
     previewReportCard: (sId, cId) => previewReportCardModal(sId, cId),
     openAddTeacherModal: () => openAddTeacherModal(),
     openAssignTeacherModal: (tId) => openAssignTeacherModal(tId),
+    openAssignFormTeacherModal: (cId) => openAssignFormTeacherModal(cId),
     removeTeacherAssignment: (assignmentId, tId) => {
       store.removeTeacherAssignment(assignmentId);
       openAssignTeacherModal(tId);
@@ -5581,44 +5210,6 @@
       store.adminReviewResults(cId, subId, "Approved", "Approved by Principal's office.", resultSession, resultTerm);
       renderView();
       showToast("Subject results approved.", "success");
-    },
-    // Timetable & Planner Handlers
-    openTimetableSlotModal: (slotId, classId, day, period) => openTimetableSlotModal(slotId, classId, day, period),
-    deleteTimetableSlot: (slotId) => {
-      if (confirm("Delete this period slot?")) {
-        store.deleteTimetableSlot(slotId);
-        renderView();
-        showToast("Period deleted.", "info");
-      }
-    },
-    autoGenerateTimetable: (classId) => {
-      const cls = store.getClassById(classId);
-      if (cls && confirm(`Auto-generate weekly timetable for ${cls.name}?`)) {
-        try {
-          store.autoGenerateClassTimetable(classId, activeSessionFilter, activeTermFilter, true);
-          renderView();
-          showToast(`Auto-generated schedule for ${cls.name}!`, "success");
-        } catch (err) {
-          showToast(err.message, "error");
-        }
-      }
-    },
-    printClassTimetable: (classId) => {
-      const cls = store.getClassById(classId);
-      if (!cls) return;
-      const periods = store.getTimetablePeriods();
-      const days = store.getTimetableDays();
-      const slots = store.getTimetableSlots({ classId, session: cls.session });
-      window.exportUtils.printTimetable(cls, slots, periods, days, store.getSchool(), cls.session, activeTermFilter);
-    },
-    exportClassTimetableCSV: (classId) => {
-      const cls = store.getClassById(classId);
-      if (!cls) return;
-      const periods = store.getTimetablePeriods();
-      const days = store.getTimetableDays();
-      const slots = store.getTimetableSlots({ classId, session: cls.session });
-      window.exportUtils.downloadTimetableCSV(cls, slots, periods, days, cls.session, activeTermFilter);
-      showToast(`Exported ${cls.name} Timetable CSV.`, "success");
     }
   };
 
