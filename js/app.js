@@ -92,7 +92,7 @@
   }
 
   // ==========================================================================
-  // SIDEBAR RENDERER (Strict Two-Panel PRD Sections 5, 26, 61)
+  // SIDEBAR RENDERER (Pondtora Architecture)
   // ==========================================================================
   function renderSidebar() {
     const role = store.getCurrentRole();
@@ -109,14 +109,21 @@
       sidebar.innerHTML = `
         <div class="sidebar-header">
           <div class="brand-group" id="brand-home-link">
-            <div class="brand-crest">CHA</div>
-            <div class="brand-text">
-              <div class="brand-title">Crown Hill Academy</div>
-              <div class="brand-subtitle">Teacher Workspace</div>
+            <div class="brand-left">
+              <div class="brand-crest">CHA</div>
+              <div class="brand-title">Crown Hill</div>
+            </div>
+            <div class="brand-bell-icon" title="Notifications">
+              <i data-lucide="bell" style="width: 15px; height: 15px;"></i>
             </div>
           </div>
-          <div class="role-badge-pill teacher">
-            <i data-lucide="graduation-cap"></i> Teacher Panel
+
+          <div class="campus-selector-pill" title="Assigned Department">
+            <div class="campus-pill-info">
+              <span class="campus-pill-title">Academic Campus</span>
+              <span class="campus-pill-sub">${store.getCurrentSession()}</span>
+            </div>
+            <i data-lucide="chevron-down" class="campus-pill-icon" style="width: 13px; height: 13px;"></i>
           </div>
         </div>
 
@@ -124,19 +131,19 @@
           <div class="nav-section-title">Teaching Modules</div>
           <div class="nav-item ${currentView === 'teacher-dashboard' ? 'active' : ''}" data-nav="teacher-dashboard">
             <i data-lucide="layout-grid"></i>
-            <span>Dashboard / My Classes</span>
+            <span>Dashboard</span>
           </div>
 
           ${formClasses.length > 0 ? `
             <div class="nav-item ${currentView === 'teacher-class-workspace' && activeClassTab === 'attendance' ? 'active' : ''}" data-nav="teacher-form-attendance" data-class-id="${formClasses[0].id}">
               <i data-lucide="clipboard-check"></i>
-              <span>Daily Attendance (${formClasses.map(c => c.name).join(", ")})</span>
+              <span>Daily Attendance</span>
             </div>
           ` : ''}
 
           <div class="nav-item ${currentView === 'teacher-profile' ? 'active' : ''}" data-nav="teacher-profile">
             <i data-lucide="user"></i>
-            <span>My Profile & Schedule</span>
+            <span>My Profile</span>
           </div>
 
           <div class="nav-section-title" style="margin-top: 14px;">My Assigned Classes</div>
@@ -145,8 +152,8 @@
             return `
               <div class="nav-item ${activeClassId === c.id && currentView === 'teacher-class-workspace' && activeClassTab !== 'attendance' ? 'active' : ''}" data-nav="teacher-class-workspace" data-class-id="${c.id}">
                 <i data-lucide="book-open"></i>
-                <span>${c.name} (${c.session})</span>
-                ${isFormCls ? `<span class="badge badge-success" style="font-size:9px; margin-left:auto; padding:2px 6px;">Form</span>` : ''}
+                <span>${c.name}</span>
+                ${isFormCls ? `<span class="badge badge-success" style="font-size:9px; margin-left:auto; padding:1px 5px;">Form</span>` : ''}
               </div>
             `;
           }).join("")}
@@ -154,14 +161,14 @@
 
         <div class="sidebar-footer">
           <div class="user-profile-box">
-            <img class="user-avatar-sm" src="${currentTeacher.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&h=120'}" alt="${currentTeacher.name}" />
+            <div class="user-avatar-initials">${currentTeacher.name.split(" ").map(n => n[0]).slice(0, 2).join("")}</div>
             <div class="user-meta-info">
               <div class="user-name-text">${currentTeacher.name}</div>
-              <div class="user-role-text">${currentTeacher.specialization || 'Teacher'}</div>
+              <div class="user-role-text">Teacher <i data-lucide="chevron-down" style="width: 10px; height: 10px;"></i></div>
             </div>
-            <button class="header-icon-btn" style="width: 30px; height: 30px; border-radius: 6px; flex-shrink: 0;" title="Teacher Settings" onclick="window.appHandlers.openSettingsModal ? window.appHandlers.openSettingsModal() : null">
-              <i data-lucide="power" style="width: 14px; height: 14px;"></i>
-            </button>
+          </div>
+          <div class="sidebar-collapse-link" onclick="window.appHandlers.openSettingsModal ? window.appHandlers.openSettingsModal() : null">
+            <i data-lucide="chevrons-left" style="width: 12px; height: 12px;"></i> Collapse
           </div>
         </div>
       `;
@@ -173,14 +180,21 @@
       sidebar.innerHTML = `
         <div class="sidebar-header">
           <div class="brand-group" id="brand-home-link">
-            <div class="brand-crest">CHA</div>
-            <div class="brand-text">
-              <div class="brand-title">Crown Hill Academy</div>
-              <div class="brand-subtitle">Administration Hub</div>
+            <div class="brand-left">
+              <div class="brand-crest">CHA</div>
+              <div class="brand-title">Crown Hill</div>
+            </div>
+            <div class="brand-bell-icon" title="Notifications">
+              <i data-lucide="bell" style="width: 15px; height: 15px;"></i>
             </div>
           </div>
-          <div class="role-badge-pill admin">
-            <i data-lucide="shield-check"></i> Admin Panel
+
+          <div class="campus-selector-pill" title="Campus / Academic Year">
+            <div class="campus-pill-info">
+              <span class="campus-pill-title">Main Campus</span>
+              <span class="campus-pill-sub">${store.getCurrentSession()}</span>
+            </div>
+            <i data-lucide="chevron-down" class="campus-pill-icon" style="width: 13px; height: 13px;"></i>
           </div>
         </div>
 
@@ -225,14 +239,14 @@
 
         <div class="sidebar-footer">
           <div class="user-profile-box">
-            <div class="brand-crest" style="width: 32px; height: 32px; font-size: 13px;">CHA</div>
+            <div class="user-avatar-initials">AD</div>
             <div class="user-meta-info">
               <div class="user-name-text">${school.principalName}</div>
-              <div class="user-role-text">${school.principalTitle}</div>
+              <div class="user-role-text">Administrator <i data-lucide="chevron-down" style="width: 10px; height: 10px;"></i></div>
             </div>
-            <button class="header-icon-btn" style="width: 30px; height: 30px; border-radius: 6px; flex-shrink: 0;" title="School Settings" onclick="window.appHandlers.openSettingsModal ? window.appHandlers.openSettingsModal() : null">
-              <i data-lucide="power" style="width: 14px; height: 14px;"></i>
-            </button>
+          </div>
+          <div class="sidebar-collapse-link" onclick="window.appHandlers.openSettingsModal ? window.appHandlers.openSettingsModal() : null">
+            <i data-lucide="chevrons-left" style="width: 12px; height: 12px;"></i> Collapse
           </div>
         </div>
       `;
