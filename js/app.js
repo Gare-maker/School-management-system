@@ -86,6 +86,8 @@
     renderView();
     closeAllModals();
     closeClassDrawer();
+    document.getElementById("app-sidebar")?.classList.remove("mobile-open");
+    document.getElementById("mobile-nav-backdrop")?.classList.remove("active");
     if (window.lucide) window.lucide.createIcons();
   }
 
@@ -495,7 +497,7 @@
       <!-- Statistics KPI Cards -->
       <div class="stats-grid">
         <div class="kpi-card">
-          <div class="kpi-icon-box orange"><i data-lucide="users"></i></div>
+          <div class="kpi-icon-box emerald"><i data-lucide="users"></i></div>
           <div class="kpi-info">
             <h4>Total Students</h4>
             <div class="kpi-value">${students.length}</div>
@@ -504,7 +506,7 @@
         </div>
 
         <div class="kpi-card">
-          <div class="kpi-icon-box emerald"><i data-lucide="school"></i></div>
+          <div class="kpi-icon-box cyan"><i data-lucide="school"></i></div>
           <div class="kpi-info">
             <h4>Total Classes</h4>
             <div class="kpi-value">${classes.length}</div>
